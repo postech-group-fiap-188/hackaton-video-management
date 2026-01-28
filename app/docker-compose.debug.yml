@@ -1,0 +1,11 @@
+services:
+  api:
+    ports:
+      - "9229:9229"
+    environment:
+      NODE_ENV: "development"
+      NODE_OPTIONS: "--enable-source-maps"
+    volumes:
+      - ./:/srv/app
+      - /srv/app/node_modules
+    command: ["sh", "-lc", "/srv/app/docker/entrypoint.dev.sh"]

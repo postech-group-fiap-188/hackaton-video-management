@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach Nest (Docker DEV)",
+      "type": "node",
+      "request": "attach",
+      "address": "localhost",
+      "port": 9229,
+      "protocol": "inspector",
+      "restart": true,
+      "timeout": 30000,
+      "autoAttachChildProcesses": true,
+      "sourceMaps": true,
+      "skipFiles": ["<node_internals>/**"],
+      "localRoot": "${workspaceFolder}/app",
+      "remoteRoot": "/srv/app"
+    }
+  ]
+}
