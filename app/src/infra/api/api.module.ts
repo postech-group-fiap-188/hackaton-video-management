@@ -14,11 +14,10 @@ import { HttpLoggingInterceptor } from './common/interceptors/http-logging.inter
 import { VideoGatewayImpl } from 'src/contexts/video/adapters/gateway/video-gateway-impl';
 import { MongooseVideoRepositoryAdapter } from 'src/infra/database/mongoose/repositories/video-repository.adapter';
 import { S3StorageAdapter } from 'src/infra/aws/s3/s3-storage.adapter';
-import { SqsVideoProcessingAdapter } from 'src/infra/aws/sqs/sqs-video-processing.adapter';
-
 import type { VideoDataSource } from 'src/interfaces/video-data-source';
 import { VIDEO_DATA_SOURCE } from 'src/interfaces/video-data-source.token';
 import { CommonModule } from './common/common.module';
+import { SnsVideoProcessingAdapter } from '../aws/sns/sns-video-processing.adapter';
 
 @Module({
   imports: [
@@ -42,14 +41,14 @@ import { CommonModule } from './common/common.module';
         AppLoggerService,
         MongooseVideoRepositoryAdapter,
         S3StorageAdapter,
-        SqsVideoProcessingAdapter,
+        SnsVideoProcessingAdapter,
       ],
       useFactory: (
         config: ConfigService,
         logger: AppLoggerService,
         repo: MongooseVideoRepositoryAdapter,
         s3: S3StorageAdapter,
-        sqs: SqsVideoProcessingAdapter,
+        sns: SnsVideoProcessingAdapter,
       ): VideoDataSource => {
         const inputBucket = must(
           config.get<string>('S3_INPUT_BUCKET_NAME'),
@@ -60,7 +59,7 @@ import { CommonModule } from './common/common.module';
           'S3_OUTPUT_BUCKET_NAME',
         );
 
-        const gateway = new VideoGatewayImpl(repo, s3, sqs);
+        const gateway = new VideoGatewayImpl(repo, s3, sns);
 
         return {
           gateway,

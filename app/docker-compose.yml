@@ -11,7 +11,7 @@ services:
     image: localstack/localstack:3
     container_name: hackaton-video-management_localstack
     environment:
-      - SERVICES=s3,sqs
+      - SERVICES=s3,sqs,sns
       - AWS_DEFAULT_REGION=us-east-1
     ports:
       - "4566:4566"

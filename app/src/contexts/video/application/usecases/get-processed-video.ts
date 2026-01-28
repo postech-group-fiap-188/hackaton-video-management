@@ -1,7 +1,7 @@
 import { AppError } from '../errors/app-error';
 import { VideoGateway } from '../gateways/video-gateway';
 
-export class GetProcessedZip {
+export class GetProcessedVideo {
   constructor(
     private readonly gateway: VideoGateway,
     private readonly outputBucket: string,
@@ -13,7 +13,11 @@ export class GetProcessedZip {
     if (meta.userId !== input.userId)
       throw new AppError('Forbidden', 'FORBIDDEN', 403);
 
+    if (meta.status !== 'SUCCEEDED')
+      throw new AppError('Video not ready', 'VIDEO_NOT_READY', 409);
+
     const key = `${meta.userId}-${meta.id}-processed.zip`;
+
     const downloadUrl = await this.gateway.presignGetObject({
       bucket: this.outputBucket,
       key,

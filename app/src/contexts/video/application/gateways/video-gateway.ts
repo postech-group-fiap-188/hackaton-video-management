@@ -16,13 +16,14 @@ export interface VideoGateway {
     filePath: string;
     contentType: string;
   }): Promise<void>;
+
   presignGetObject(input: {
     bucket: string;
     key: string;
     expiresInSeconds: number;
   }): Promise<string>;
 
-  enqueueProcessing(input: {
+  publishProcessingEvent(input: {
     videoId: string;
     userId: string;
     inputBucket: string;

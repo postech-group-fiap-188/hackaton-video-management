@@ -2,13 +2,13 @@ import { VideoGateway } from 'src/contexts/video/application/gateways/video-gate
 import { VideoMetadata } from 'src/contexts/video/domain/video-metadata';
 import { MongooseVideoRepositoryAdapter } from 'src/infra/database/mongoose/repositories/video-repository.adapter';
 import { S3StorageAdapter } from 'src/infra/aws/s3/s3-storage.adapter';
-import { SqsVideoProcessingAdapter } from 'src/infra/aws/sqs/sqs-video-processing.adapter';
+import { SnsVideoProcessingAdapter } from 'src/infra/aws/sns/sns-video-processing.adapter';
 
 export class VideoGatewayImpl implements VideoGateway {
   constructor(
     private readonly repo: MongooseVideoRepositoryAdapter,
     private readonly s3: S3StorageAdapter,
-    private readonly sqs: SqsVideoProcessingAdapter,
+    private readonly sns: SnsVideoProcessingAdapter,
   ) {}
 
   createPending(input: Omit<VideoMetadata, 'status'>): Promise<VideoMetadata> {
@@ -44,7 +44,7 @@ export class VideoGatewayImpl implements VideoGateway {
     return this.s3.presignGetObject(input);
   }
 
-  enqueueProcessing(input: {
+  publishProcessingEvent(input: {
     videoId: string;
     userId: string;
     inputBucket: string;
@@ -54,6 +54,6 @@ export class VideoGatewayImpl implements VideoGateway {
     contentType: string;
     size: number;
   }): Promise<void> {
-    return this.sqs.enqueueProcessing(input);
+    return this.sns.publishProcessingEvent({ event: input });
   }
 }

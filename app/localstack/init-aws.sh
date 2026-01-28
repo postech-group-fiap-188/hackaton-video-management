@@ -6,7 +6,7 @@ awslocal s3 mb s3://videos-input || true
 awslocal s3 mb s3://videos-processed || true
 
 echo "[localstack] creating s3 buckets..."
-awslocal sqs create-queue --queue-name video-processing-queue || true
+awslocal sns create-topic --name video-processing-topic || true
 awslocal sqs create-queue --queue-name video-status-queue || true
 
 echo "[localstack] done."

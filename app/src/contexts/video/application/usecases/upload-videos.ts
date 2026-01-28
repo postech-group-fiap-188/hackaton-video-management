@@ -85,7 +85,7 @@ export class UploadVideos {
               contentType: f.contentType,
             });
 
-            await this.gateway.enqueueProcessing({
+            await this.gateway.publishProcessingEvent({
               videoId,
               userId: input.userId,
               inputBucket: this.cfg.inputBucket,

@@ -1,12 +1,12 @@
 import { VideoDataSource } from 'src/interfaces/video-data-source';
 import { UploadVideos } from '../../application/usecases/upload-videos';
 import { ListUserVideos } from '../../application/usecases/list-user-videos';
-import { GetProcessedZip } from '../../application/usecases/get-processed-video';
 import { UpdateVideoStatus } from '../../application/usecases/update-video-status';
 import { UploadVideosPresenter } from '../presenters/upload-videos-presenter';
 import { ListVideosPresenter } from '../presenters/list-videos-presenter';
 import { DownloadProcessedZipPresenter } from '../presenters/download-processed-zip-presenter';
 import pLimit from 'p-limit';
+import { GetProcessedVideo } from '../../application/usecases/get-processed-video';
 
 export class VideoController {
   constructor(private readonly ds: VideoDataSource) {}
@@ -46,7 +46,7 @@ export class VideoController {
   }
 
   async downloadProcessedZip(userId: string, videoId: string) {
-    const usecase = new GetProcessedZip(
+    const usecase = new GetProcessedVideo(
       this.ds.gateway,
       this.ds.config.outputBucket,
     );
