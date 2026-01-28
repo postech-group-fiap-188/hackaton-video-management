@@ -17,6 +17,7 @@ services:
       - "4566:4566"
     volumes:
       - ./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh
+      - ./localstack/sns-debug.sh:/etc/localstack/init/ready.d/sns-debug.sh
 
   api:
     build:
@@ -34,4 +35,4 @@ services:
     environment:
       NODE_OPTIONS: "--enable-source-maps"
       START_CMD: "node --inspect=0.0.0.0:9229 dist/main.js"
-    command: ["sh", "-lc", "/srv/docker/entrypoint.sh"]
+    command: ["sh", "-lc", "/srv/app/docker/entrypoint.sh"]

@@ -8,7 +8,5 @@ export interface VideoDataSource {
     inputBucket: string;
     outputBucket: string;
     maxVideoBytes: number;
-    perRequestParallel: number;
-    globalParallel: number;
   };
 }

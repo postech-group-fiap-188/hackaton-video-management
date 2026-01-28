@@ -70,12 +70,6 @@ import { SnsVideoProcessingAdapter } from '../aws/sns/sns-video-processing.adapt
             maxVideoBytes: Number(
               config.get<string>('MAX_VIDEO_BYTES') ?? '2147483648',
             ),
-            perRequestParallel: Number(
-              config.get<string>('MAX_PARALLEL_UPLOADS_PER_REQUEST') ?? '2',
-            ),
-            globalParallel: Number(
-              config.get<string>('MAX_PARALLEL_UPLOADS_GLOBAL') ?? '4',
-            ),
           },
         };
       },

@@ -61,7 +61,9 @@ export class VideosHttpController {
           cb(null, dir);
         },
         filename: (_req, file, cb) => {
-          const safe = file.originalname.replace(/[^\w.\-()]+/g, '_');
+          const safe = file.originalname
+            .normalize('NFC')
+            .replace(/[^\p{L}\p{N}._\-()]+/gu, '_');
           cb(null, `${Date.now()}-${safe}`);
         },
       }),
@@ -70,6 +72,7 @@ export class VideosHttpController {
   )
   async upload(
     @Req() req: Request,
+    /* c8 ignore next */
     @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
     const userId = req.user?.sub;
