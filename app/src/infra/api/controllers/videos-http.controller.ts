@@ -18,6 +18,7 @@ import path from 'path';
 import {
   ApiBody,
   ApiConsumes,
+  ApiOkResponse,
   ApiParam,
   ApiSecurity,
   ApiTags,
@@ -30,6 +31,10 @@ import { AppError } from 'src/contexts/video/application/errors/app-error';
 import type { UserContextProps } from 'src/contexts/video/domain/value-objects/user-context';
 import { ApiUserHeaders } from '../dtos/api-header.dto';
 
+import { UploadVideosResponseDto } from '../dtos/upload-videos-response.dto';
+import { GetProcessedZipResponseDto } from '../dtos/get-processed-zip-response.dto';
+import { ListAllVideosResponseDto } from '../dtos/list-videos-response.dto';
+
 @ApiTags('videos')
 @ApiSecurity('x-user-id')
 @ApiSecurity('x-user-email')
@@ -40,6 +45,7 @@ export class VideosHttpController {
   constructor(@Inject(VIDEO_DATA_SOURCE) private readonly ds: VideoDataSource) {
     this.controller = new VideoController(ds);
   }
+
   @Post('videos/upload')
   @ApiUserHeaders()
   @ApiConsumes('multipart/form-data')
@@ -52,6 +58,7 @@ export class VideosHttpController {
       required: ['videos'],
     },
   })
+  @ApiOkResponse({ type: UploadVideosResponseDto })
   @UseInterceptors(
     FilesInterceptor('videos', Number(process.env.MAX_FILES_PER_REQUEST ?? 3), {
       storage: diskStorage({
@@ -74,7 +81,7 @@ export class VideosHttpController {
     @Req() req: Request,
     /* c8 ignore next */
     @UploadedFiles() files: Array<Express.Multer.File>,
-  ) {
+  ): Promise<UploadVideosResponseDto> {
     const user = getUserPropsFromHeaders(req);
 
     if (!files || files.length === 0) {
@@ -88,27 +95,34 @@ export class VideosHttpController {
       tempFilePath: f.path,
     }));
 
-    return this.controller.upload(user, mapped, (m) =>
+    return (await this.controller.upload(user, mapped, (m) =>
       validateVideo(m, this.ds.config.maxVideoBytes),
-    );
+    )) as unknown as UploadVideosResponseDto;
   }
 
   @Get('users/me/videos')
   @ApiUserHeaders()
-  async list(@Req() req: Request) {
+  @ApiOkResponse({ type: ListAllVideosResponseDto })
+  async list(@Req() req: Request): Promise<ListAllVideosResponseDto> {
     const user = getUserPropsFromHeaders(req);
-    return this.controller.list(user);
+    return (await this.controller.list(
+      user,
+    )) as unknown as ListAllVideosResponseDto;
   }
 
   @Get('videos/:videoId/processed-zip')
   @ApiUserHeaders()
   @ApiParam({ name: 'videoId' })
+  @ApiOkResponse({ type: GetProcessedZipResponseDto })
   async downloadProcessedZip(
     @Req() req: Request,
     @Param('videoId') videoId: string,
-  ) {
+  ): Promise<GetProcessedZipResponseDto> {
     const user = getUserPropsFromHeaders(req);
-    return this.controller.downloadProcessedZip(user, videoId);
+    return (await this.controller.downloadProcessedZip(
+      user,
+      videoId,
+    )) as unknown as GetProcessedZipResponseDto;
   }
 }
 
@@ -171,7 +185,9 @@ function validateVideo(
       'INVALID_VIDEO_EXTENSION',
       'INVALID_VIDEO_EXTENSION',
       400,
-      { ext },
+      {
+        ext,
+      },
     );
 
   if (!allowedMime.has(meta.contentType))
