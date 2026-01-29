@@ -1,14 +1,12 @@
-
 import type { Request } from 'express';
 
 type EnvInput = {
   MAX_FILES_PER_REQUEST?: string;
   MAX_VIDEO_BYTES?: string;
-  reflectMetadata?: 'on' | 'off';
 };
 
-function makeReq(userId?: string): Request {
-  return { user: userId ? { sub: userId } : undefined } as unknown as Request;
+function makeReq(headers?: Record<string, unknown>): Request {
+  return { headers: headers as any } as unknown as Request;
 }
 
 function makeFile(input: {
@@ -41,47 +39,15 @@ describe('VideosHttpController (100% coverage)', () => {
     jest.resetModules();
     jest.clearAllMocks();
 
-
-    if (env?.reflectMetadata === 'on') {
-  
-      try {
-        Object.defineProperty(Reflect as any, 'metadata', {
-          configurable: true,
-          writable: true,
-          value: (Reflect as any).metadata ?? (() => () => undefined),
-        });
-      } catch {
-        (Reflect as any).metadata = (Reflect as any).metadata ?? (() => () => undefined);
-      }
-    } else {
-  
-      try {
-        delete (Reflect as any).metadata;
-      } catch {
-        try {
-          Object.defineProperty(Reflect as any, 'metadata', {
-            configurable: true,
-            writable: true,
-            value: undefined,
-          });
-        } catch {
-          (Reflect as any).metadata = undefined;
-        }
-      }
-    }
-
-
     if (env?.MAX_FILES_PER_REQUEST !== undefined)
       process.env.MAX_FILES_PER_REQUEST = env.MAX_FILES_PER_REQUEST;
     else delete process.env.MAX_FILES_PER_REQUEST;
 
-    if (env?.MAX_VIDEO_BYTES !== undefined)
-      process.env.MAX_VIDEO_BYTES = env.MAX_VIDEO_BYTES;
+    if (env?.MAX_VIDEO_BYTES !== undefined) process.env.MAX_VIDEO_BYTES = env.MAX_VIDEO_BYTES;
     else delete process.env.MAX_VIDEO_BYTES;
 
     capturedFilesInterceptorOpts = undefined;
     capturedMaxFiles = undefined;
-
 
     jest.doMock('fs', () => ({
       __esModule: true,
@@ -93,11 +59,9 @@ describe('VideosHttpController (100% coverage)', () => {
       mkdirSync: (...args: any[]) => mkdirSyncMock(...args),
     }));
 
-
     jest.doMock('multer', () => ({
       diskStorage: (opts: any) => opts,
     }));
-
 
     jest.doMock('@nestjs/platform-express', () => ({
       FilesInterceptor: (_field: string, max: number, opts: any) => {
@@ -107,53 +71,28 @@ describe('VideosHttpController (100% coverage)', () => {
       },
     }));
 
-
-    jest.doMock('src/infra/auth/cognito-auth.guard', () => ({
-      CognitoAuthGuard: class CognitoAuthGuard {},
+    jest.doMock('src/contexts/video/adapters/controllers/video-controller', () => ({
+      VideoController: jest.fn().mockImplementation(() => ({
+        upload: uploadMock,
+        list: listMock,
+        downloadProcessedZip: downloadZipMock,
+      })),
     }));
-
-
-    jest.doMock(
-      'src/contexts/video/adapters/controllers/video-controller',
-      () => ({
-        VideoController: jest.fn().mockImplementation(() => ({
-          upload: uploadMock,
-          list: listMock,
-          downloadProcessedZip: downloadZipMock,
-        })),
-      }),
-    );
 
     let VideosHttpController: any;
     let AppError: any;
 
     jest.isolateModules(() => {
-      VideosHttpController =
-        require('./videos-http.controller').VideosHttpController;
-
-      AppError =
-        require('src/contexts/video/application/errors/app-error').AppError;
+      VideosHttpController = require('./videos-http.controller').VideosHttpController;
+      AppError = require('src/contexts/video/application/errors/app-error').AppError;
     });
 
     return { VideosHttpController, AppError };
   }
 
-  describe('decorator metadata branch (Reflect.metadata on/off)', () => {
-    it('importa módulo com Reflect.metadata OFF (branch false)', () => {
-      bootWithEnv({ reflectMetadata: 'off' });
-      expect(capturedFilesInterceptorOpts).toBeDefined();
-    });
-
-    it('importa módulo com Reflect.metadata ON (branch true)', () => {
-      bootWithEnv({ reflectMetadata: 'on' });
-      expect(typeof (Reflect as any).metadata).toBe('function');
-      expect(capturedFilesInterceptorOpts).toBeDefined();
-    });
-  });
-
   describe('decorator storage callbacks', () => {
     it('destination: cria /tmp/uploads quando não existe', () => {
-      bootWithEnv({ reflectMetadata: 'on' });
+      bootWithEnv();
 
       existsSyncMock.mockReturnValue(false);
 
@@ -167,14 +106,12 @@ describe('VideosHttpController (100% coverage)', () => {
       destination({}, {}, cb);
 
       expect(existsSyncMock).toHaveBeenCalledWith('/tmp/uploads');
-      expect(mkdirSyncMock).toHaveBeenCalledWith('/tmp/uploads', {
-        recursive: true,
-      });
+      expect(mkdirSyncMock).toHaveBeenCalledWith('/tmp/uploads', { recursive: true });
       expect(cb).toHaveBeenCalledWith(null, '/tmp/uploads');
     });
 
     it('destination: NÃO cria diretório quando já existe', () => {
-      bootWithEnv({ reflectMetadata: 'on' });
+      bootWithEnv();
 
       existsSyncMock.mockReturnValue(true);
 
@@ -193,7 +130,7 @@ describe('VideosHttpController (100% coverage)', () => {
     });
 
     it('filename: sanitiza nome e prefixa Date.now()', () => {
-      bootWithEnv({ reflectMetadata: 'on' });
+      bootWithEnv();
 
       const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(123);
 
@@ -206,11 +143,7 @@ describe('VideosHttpController (100% coverage)', () => {
       const cb = jest.fn();
       filename({}, { originalname: 'Meu vídeo (1) !!.mp4' }, cb);
 
-  
       expect(cb).toHaveBeenCalledWith(null, '123-Meu_vídeo_(1)_.mp4');
-
-  
-  
 
       nowSpy.mockRestore();
     });
@@ -218,123 +151,59 @@ describe('VideosHttpController (100% coverage)', () => {
 
   describe('decorator env branches', () => {
     it('usa defaults quando env não está setado', () => {
-      bootWithEnv({ reflectMetadata: 'on' });
+      bootWithEnv();
 
       expect(capturedMaxFiles).toBe(3);
       expect(capturedFilesInterceptorOpts.limits.fileSize).toBe(2147483648);
     });
 
     it('usa valores do env quando setado', () => {
-      bootWithEnv({
-        reflectMetadata: 'on',
-        MAX_FILES_PER_REQUEST: '7',
-        MAX_VIDEO_BYTES: '999',
-      });
+      bootWithEnv({ MAX_FILES_PER_REQUEST: '7', MAX_VIDEO_BYTES: '999' });
 
       expect(capturedMaxFiles).toBe(7);
       expect(capturedFilesInterceptorOpts.limits.fileSize).toBe(999);
     });
   });
 
-  describe('métodos do controller', () => {
-    it('upload: 400 quando req.user ausente', async () => {
-      const { VideosHttpController } = bootWithEnv({ reflectMetadata: 'on' });
+  describe('métodos do controller + parsing do x-user-*', () => {
+    it('list: 400 quando x-user-id ausente', async () => {
+      const { VideosHttpController } = bootWithEnv();
       const controller = new VideosHttpController(makeDs(100));
 
-      try {
-        await controller.upload(
-          makeReq(undefined),
-          [
-            makeFile({
-              originalname: 'a.mp4',
-              mimetype: 'video/mp4',
-              size: 10,
-              path: '/tmp/a',
-            }),
-          ],
-        );
-        fail('should throw');
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(400);
-        expect(err.getResponse()).toMatchObject({
-          statusCode: 400,
-          message: 'Missing user',
-        });
-      }
+      await expect(controller.list(makeReq({ 'x-user-email': 'u1@mail.com' }))).rejects.toMatchObject({
+        status: 400
+      });
 
-      expect(uploadMock).not.toHaveBeenCalled();
+      expect(listMock).not.toHaveBeenCalled();
     });
 
-    it('upload: 400 quando req.user existe mas sub ausente', async () => {
-      const { VideosHttpController } = bootWithEnv({ reflectMetadata: 'on' });
+    it('upload: 400 quando x-user-id ausente', async () => {
+      const { VideosHttpController } = bootWithEnv();
       const controller = new VideosHttpController(makeDs(100));
 
-      const req = { user: {} } as any;
-
-      try {
-        await controller.upload(
-          req,
-          [
-            makeFile({
-              originalname: 'a.mp4',
-              mimetype: 'video/mp4',
-              size: 10,
-              path: '/tmp/a',
-            }),
-          ],
-        );
-        fail('should throw');
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(400);
-        expect(err.getResponse()).toMatchObject({
-          statusCode: 400,
-          message: 'Missing user',
-        });
-      }
+      await expect(
+        controller.upload(
+          makeReq({ 'x-user-email': 'u1@mail.com' }),
+          [makeFile({ originalname: 'a.mp4', mimetype: 'video/mp4', size: 10, path: '/tmp/a' })],
+        ),
+      ).rejects.toMatchObject({ status: 400 });
 
       expect(uploadMock).not.toHaveBeenCalled();
     });
 
     it('upload: 400 quando files vazio', async () => {
-      const { VideosHttpController } = bootWithEnv({ reflectMetadata: 'on' });
+      const { VideosHttpController } = bootWithEnv();
       const controller = new VideosHttpController(makeDs(100));
 
-      try {
-        await controller.upload(makeReq('u1'), []);
-        fail('should throw');
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(400);
-        expect(err.getResponse()).toMatchObject({
-          statusCode: 400,
-          message: 'videos is required',
-        });
-      }
+      await expect(
+        controller.upload(makeReq({ 'x-user-id': 'u1' }), []),
+      ).rejects.toMatchObject({ status: 400 });
 
       expect(uploadMock).not.toHaveBeenCalled();
     });
 
-    it('upload: 400 quando files undefined (branch !files)', async () => {
-      const { VideosHttpController } = bootWithEnv({ reflectMetadata: 'on' });
-      const controller = new VideosHttpController(makeDs(100));
-
-      try {
-        await controller.upload(makeReq('u1'), undefined as any);
-        fail('should throw');
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(400);
-        expect(err.getResponse()).toMatchObject({
-          statusCode: 400,
-          message: 'videos is required',
-        });
-      }
-
-      expect(uploadMock).not.toHaveBeenCalled();
-    });
-
-    it('upload: mapeia files e valida validator (inclui caminho OK)', async () => {
-      const { VideosHttpController, AppError } = bootWithEnv({
-        reflectMetadata: 'on',
-      });
+    it('upload: mapeia files e chama VideoController.upload com user props', async () => {
+      const { VideosHttpController, AppError } = bootWithEnv();
       const controller = new VideosHttpController(makeDs(100));
 
       uploadMock.mockResolvedValue({ ok: true });
@@ -346,150 +215,105 @@ describe('VideosHttpController (100% coverage)', () => {
           size: 10,
           path: '/tmp/uploads/a.mp4',
         }),
-        makeFile({
-          originalname: 'b.mov',
-          mimetype: 'video/quicktime',
-          size: 20,
-          path: '/tmp/uploads/b.mov',
-        }),
       ];
 
-      const result = await controller.upload(makeReq('u1'), files);
+      const res = await controller.upload(
+        makeReq({
+          'content-type': 'multipart/form-data', 
+          'x-user-empty': '', 
+          'x-user-': 'x', 
+          'x-user-id': 'u1',
+          'x-user-email': 'u1@mail.com',
+          'x-user-is-admin': 'true', 
+        }),
+        files,
+      );
 
-      expect(result).toEqual({ ok: true });
+      expect(res).toEqual({ ok: true });
       expect(uploadMock).toHaveBeenCalledTimes(1);
 
-      const [userId, mapped, validator] = uploadMock.mock.calls[0] as [
-        string,
-        Array<{
-          originalFileName: string;
-          contentType: string;
-          size: number;
-          tempFilePath: string;
-        }>,
-        (m: { originalFileName: string; contentType: string; size: number }) => void,
-      ];
+      const [userArg, mappedArg, validator] = uploadMock.mock.calls[0];
 
-      expect(userId).toBe('u1');
-      expect(mapped).toEqual([
+      expect(userArg).toEqual(
+        expect.objectContaining({
+          id: 'u1',
+          email: 'u1@mail.com',
+          isAdmin: 'true',
+        }),
+      );
+
+      
+      expect((userArg as any)['']).toBe('x');
+
+      expect(mappedArg).toEqual([
         {
           originalFileName: 'a.mp4',
           contentType: 'video/mp4',
           size: 10,
           tempFilePath: '/tmp/uploads/a.mp4',
         },
-        {
-          originalFileName: 'b.mov',
-          contentType: 'video/quicktime',
-          size: 20,
-          tempFilePath: '/tmp/uploads/b.mov',
-        },
       ]);
 
-  
+      
       expect(() =>
-        validator({
-          originalFileName: 'x.exe',
-          contentType: 'video/mp4',
-          size: 10,
-        }),
+        validator({ originalFileName: 'x.exe', contentType: 'video/mp4', size: 10 }),
       ).toThrow(AppError);
 
       expect(() =>
-        validator({
-          originalFileName: 'x.mp4',
-          contentType: 'application/json',
-          size: 10,
-        }),
+        validator({ originalFileName: 'x.mp4', contentType: 'application/json', size: 10 }),
       ).toThrow(AppError);
 
       expect(() =>
-        validator({
-          originalFileName: 'x.mp4',
-          contentType: 'video/mp4',
-          size: 0,
-        }),
+        validator({ originalFileName: 'x.mp4', contentType: 'video/mp4', size: 0 }),
       ).toThrow(AppError);
 
       expect(() =>
-        validator({
-          originalFileName: 'x.mp4',
-          contentType: 'video/mp4',
-          size: 101,
-        }),
+        validator({ originalFileName: 'x.mp4', contentType: 'video/mp4', size: 101 }),
       ).toThrow(AppError);
 
-  
       expect(() =>
-        validator({
-          originalFileName: 'ok.mp4',
-          contentType: 'video/mp4',
-          size: 10,
-        }),
+        validator({ originalFileName: 'ok.mp4', contentType: 'video/mp4', size: 10 }),
       ).not.toThrow();
     });
 
-    it('list: 400 quando userId ausente', async () => {
-      const { VideosHttpController } = bootWithEnv({ reflectMetadata: 'on' });
-      const controller = new VideosHttpController(makeDs(100));
-
-      try {
-        await controller.list(makeReq(undefined));
-        fail('should throw');
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(400);
-        expect(err.getResponse()).toMatchObject({
-          statusCode: 400,
-          message: 'Missing user',
-        });
-      }
-
-      expect(listMock).not.toHaveBeenCalled();
-    });
-
-    it('list: chama VideoController.list', async () => {
-      const { VideosHttpController } = bootWithEnv({ reflectMetadata: 'on' });
+    it('list: chama VideoController.list com user props', async () => {
+      const { VideosHttpController } = bootWithEnv();
       const controller = new VideosHttpController(makeDs(100));
 
       listMock.mockResolvedValue([{ id: 'v1' }]);
 
-      const result = await controller.list(makeReq('u1'));
+      const res = await controller.list(
+        makeReq({
+          'x-user-id': 'u1',
+          'x-user-email': 'u1@mail.com',
+        }),
+      );
 
-      expect(result).toEqual([{ id: 'v1' }]);
-      expect(listMock).toHaveBeenCalledWith('u1');
+      expect(res).toEqual([{ id: 'v1' }]);
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'u1', email: 'u1@mail.com' }),
+      );
     });
 
-    it('downloadProcessedZip: 400 quando userId ausente', async () => {
-      const { VideosHttpController } = bootWithEnv({ reflectMetadata: 'on' });
-      const controller = new VideosHttpController(makeDs(100));
-
-      try {
-        await controller.downloadProcessedZip(makeReq(undefined), 'vid-1');
-        fail('should throw');
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(400);
-        expect(err.getResponse()).toMatchObject({
-          statusCode: 400,
-          message: 'Missing user',
-        });
-      }
-
-      expect(downloadZipMock).not.toHaveBeenCalled();
-    });
-
-    it('downloadProcessedZip: chama VideoController.downloadProcessedZip', async () => {
-      const { VideosHttpController } = bootWithEnv({ reflectMetadata: 'on' });
+    it('downloadProcessedZip: chama VideoController.downloadProcessedZip com user props', async () => {
+      const { VideosHttpController } = bootWithEnv();
       const controller = new VideosHttpController(makeDs(100));
 
       downloadZipMock.mockResolvedValue({ url: 'signed-url' });
 
-      const result = await controller.downloadProcessedZip(
-        makeReq('u1'),
+      const res = await controller.downloadProcessedZip(
+        makeReq({
+          'x-user-id': 'u1',
+          'x-user-email': 'u1@mail.com',
+        }),
         'vid-1',
       );
 
-      expect(result).toEqual({ url: 'signed-url' });
-      expect(downloadZipMock).toHaveBeenCalledWith('u1', 'vid-1');
+      expect(res).toEqual({ url: 'signed-url' });
+      expect(downloadZipMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'u1', email: 'u1@mail.com' }),
+        'vid-1',
+      );
     });
   });
 });

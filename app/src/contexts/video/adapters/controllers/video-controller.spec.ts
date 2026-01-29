@@ -1,6 +1,7 @@
 import { VideoController } from './video-controller';
 import type { VideoDataSource } from 'src/interfaces/video-data-source';
 import type { VideoGateway } from '../../application/gateways/video-gateway';
+import type { UserContextProps } from '../../domain/value-objects/user-context';
 
 jest.mock('../../application/usecases/upload-videos', () => ({ UploadVideos: jest.fn() }));
 jest.mock('../../application/usecases/list-user-videos', () => ({ ListUserVideos: jest.fn() }));
@@ -29,7 +30,7 @@ import { DownloadProcessedZipPresenter } from '../presenters/download-processed-
 type CtorMock = jest.Mock;
 
 type Logger = {
-  log: (message: string, meta?: Record<string, unknown>) => void;
+  info: (message: string, meta?: Record<string, unknown>) => void;
   warn: (message: string, meta?: Record<string, unknown>) => void;
   error: (message: string, meta?: Record<string, unknown>) => void;
 };
@@ -37,18 +38,23 @@ type Logger = {
 function makeGateway(): jest.Mocked<VideoGateway> {
   return {
     createPending: jest.fn(),
-    listByUserId: jest.fn(),
+    listByUser: jest.fn(),
     findById: jest.fn(),
     updateStatus: jest.fn(),
     uploadMultipartFromPath: jest.fn(),
     presignGetObject: jest.fn(),
     publishProcessingEvent: jest.fn(),
-  };
+  } as any;
 }
 
 function makeLogger(): jest.Mocked<Logger> {
-  return { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
+  return { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 }
+
+const makeUser = (id = 'u1'): UserContextProps => ({
+  id,
+  email: `${id}@mail.com`,
+});
 
 describe('VideoController', () => {
   const UploadVideosCtor = UploadVideos as unknown as CtorMock;
@@ -67,17 +73,16 @@ describe('VideoController', () => {
   it('upload: instancia UploadVideos com cfg + logger e retorna presenter', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
+    const user = makeUser('u1');
 
     const ds: VideoDataSource = {
       gateway,
-      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket',maxVideoBytes:104857600 },
+      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket', maxVideoBytes: 104857600 },
       logger: logger as never,
     };
 
     const executeMock = jest.fn().mockResolvedValue({
-      items: [
-        { ok: true, videoId: 'v1', inputKey: 'k', outputZipKey: 'z', status: 'PENDING' },
-      ],
+      items: [{ ok: true, videoId: 'v1', inputKey: 'k', outputZipKey: 'z', status: 'PENDING' }],
     });
 
     UploadVideosCtor.mockImplementation(() => ({ execute: executeMock }));
@@ -88,7 +93,7 @@ describe('VideoController', () => {
     const validate = jest.fn();
 
     const res = await controller.upload(
-      'u1',
+      user,
       [
         {
           originalFileName: 'a.mp4',
@@ -107,7 +112,7 @@ describe('VideoController', () => {
     );
 
     expect(executeMock).toHaveBeenCalledWith({
-      userId: 'u1',
+      user,
       files: [
         {
           originalFileName: 'a.mp4',
@@ -126,10 +131,11 @@ describe('VideoController', () => {
   it('list: instancia ListUserVideos com logger e retorna presenter', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
+    const user = makeUser('u1');
 
     const ds: VideoDataSource = {
       gateway,
-      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket',maxVideoBytes:104857600 },
+      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket', maxVideoBytes: 104857600 },
       logger: logger as never,
     };
 
@@ -140,10 +146,12 @@ describe('VideoController', () => {
 
     const controller = new VideoController(ds);
 
-    const res = await controller.list('u1');
+    const res = await controller.list(user);
 
     expect(ListUserVideosCtor).toHaveBeenCalledWith(gateway, ds.logger);
-    expect(executeMock).toHaveBeenCalledWith('u1');
+
+    expect(executeMock).toHaveBeenCalledWith(user);
+
     expect(listPresenter.toJSON).toHaveBeenCalledWith([{ videoId: 'v1' }]);
     expect(res).toEqual({ videos: [{ videoId: 'v1' }] });
   });
@@ -151,10 +159,11 @@ describe('VideoController', () => {
   it('downloadProcessedZip: instancia GetProcessedVideo com outputBucket + logger e retorna presenter', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
+    const user = makeUser('u1');
 
     const ds: VideoDataSource = {
       gateway,
-      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket',maxVideoBytes:104857600 },
+      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket', maxVideoBytes: 104857600 },
       logger: logger as never,
     };
 
@@ -169,10 +178,12 @@ describe('VideoController', () => {
 
     const controller = new VideoController(ds);
 
-    const res = await controller.downloadProcessedZip('u1', 'v1');
+    const res = await controller.downloadProcessedZip(user, 'v1');
 
     expect(GetProcessedVideoCtor).toHaveBeenCalledWith(gateway, 'out-bucket', ds.logger);
-    expect(executeMock).toHaveBeenCalledWith({ userId: 'u1', videoId: 'v1' });
+
+
+    expect(executeMock).toHaveBeenCalledWith({ user, videoId: 'v1' });
 
     expect(downloadPresenter.toJSON).toHaveBeenCalled();
     expect(res).toEqual({ downloadUrl: 'http://signed' });
@@ -184,7 +195,7 @@ describe('VideoController', () => {
 
     const ds: VideoDataSource = {
       gateway,
-      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket',maxVideoBytes:104857600 },
+      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket', maxVideoBytes: 104857600 },
       logger: logger as never,
     };
 

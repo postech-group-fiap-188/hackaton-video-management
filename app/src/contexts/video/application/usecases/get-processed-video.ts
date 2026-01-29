@@ -1,6 +1,10 @@
 import { AppLoggerService } from 'src/infra/api/common/logger/app-logger.service';
 import { AppError } from '../errors/app-error';
-import { VideoGateway } from '../gateways/video-gateway';
+import type { VideoGateway } from '../gateways/video-gateway';
+import {
+  UserContext,
+  UserContextProps,
+} from 'src/contexts/video/domain/value-objects/user-context';
 
 export class GetProcessedVideo {
   constructor(
@@ -9,9 +13,11 @@ export class GetProcessedVideo {
     private readonly logger: AppLoggerService,
   ) {}
 
-  async execute(input: { userId: string; videoId: string }) {
+  async execute(input: { user: UserContextProps; videoId: string }) {
+    const user = UserContext.create(input.user);
+
     this.logger.info('get_processed_video.start', {
-      userId: input.userId,
+      userId: user.id,
       videoId: input.videoId,
       outputBucket: this.outputBucket,
     });
@@ -20,34 +26,34 @@ export class GetProcessedVideo {
 
     if (!meta) {
       this.logger.warn('get_processed_video.not_found', {
-        userId: input.userId,
+        userId: user.id,
         videoId: input.videoId,
       });
       throw new AppError('Video not found', 'VIDEO_NOT_FOUND', 404);
     }
 
-    if (meta.userId !== input.userId) {
+    if (meta.user.id !== user.id) {
       this.logger.warn('get_processed_video.forbidden', {
-        userId: input.userId,
+        userId: user.id,
         videoId: input.videoId,
-        ownerUserId: meta.userId,
+        ownerUserId: meta.user.id,
       });
       throw new AppError('Forbidden', 'FORBIDDEN', 403);
     }
 
     if (meta.status !== 'SUCCEEDED') {
       this.logger.warn('get_processed_video.not_ready', {
-        userId: input.userId,
+        userId: user.id,
         videoId: input.videoId,
         status: meta.status,
       });
       throw new AppError('Video not ready', 'VIDEO_NOT_READY', 409);
     }
 
-    const key = `${meta.userId}-${meta.id}-processed.zip`;
+    const key = `${meta.user.id}-${meta.id}-processed.zip`;
 
     this.logger.info('get_processed_video.presign.request', {
-      userId: input.userId,
+      userId: user.id,
       videoId: input.videoId,
       bucket: this.outputBucket,
       key,
@@ -61,7 +67,7 @@ export class GetProcessedVideo {
     });
 
     this.logger.info('get_processed_video.success', {
-      userId: input.userId,
+      userId: user.id,
       videoId: input.videoId,
       bucket: this.outputBucket,
       key,

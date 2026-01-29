@@ -1,5 +1,10 @@
-import { VideoGateway } from 'src/contexts/video/application/gateways/video-gateway';
-import { VideoMetadata } from 'src/contexts/video/domain/video-metadata';
+import type {
+  VideoGateway,
+  ProcessingEvent,
+} from 'src/contexts/video/application/gateways/video-gateway';
+import type { VideoMetadata } from 'src/contexts/video/domain/video-metadata';
+import type { UserContext } from 'src/contexts/video/domain/value-objects/user-context';
+
 import { MongooseVideoRepositoryAdapter } from 'src/infra/database/mongoose/repositories/video-repository.adapter';
 import { S3StorageAdapter } from 'src/infra/aws/s3/s3-storage.adapter';
 import { SnsVideoProcessingAdapter } from 'src/infra/aws/sns/sns-video-processing.adapter';
@@ -14,12 +19,15 @@ export class VideoGatewayImpl implements VideoGateway {
   createPending(input: Omit<VideoMetadata, 'status'>): Promise<VideoMetadata> {
     return this.repo.createPending(input);
   }
-  listByUserId(userId: string): Promise<VideoMetadata[]> {
+
+  listByUserId(userId: UserContext['id']): Promise<VideoMetadata[]> {
     return this.repo.listByUserId(userId);
   }
+
   findById(videoId: string): Promise<VideoMetadata | null> {
     return this.repo.findById(videoId);
   }
+
   updateStatus(input: {
     videoId: string;
     status: 'SUCCEEDED' | 'ERROR';
@@ -36,6 +44,7 @@ export class VideoGatewayImpl implements VideoGateway {
   }): Promise<void> {
     return this.s3.uploadMultipartFromPath(input);
   }
+
   presignGetObject(input: {
     bucket: string;
     key: string;
@@ -44,16 +53,7 @@ export class VideoGatewayImpl implements VideoGateway {
     return this.s3.presignGetObject(input);
   }
 
-  publishProcessingEvent(input: {
-    videoId: string;
-    userId: string;
-    inputBucket: string;
-    inputKey: string;
-    outputBucket: string;
-    outputZipKey: string;
-    contentType: string;
-    size: number;
-  }): Promise<void> {
+  publishProcessingEvent(input: ProcessingEvent): Promise<void> {
     return this.sns.publishProcessingEvent({ event: input });
   }
 }

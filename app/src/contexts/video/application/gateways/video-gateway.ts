@@ -1,4 +1,20 @@
+import { UserContextProps } from '../../domain/value-objects/user-context';
 import { VideoMetadata } from '../../domain/video-metadata';
+
+export type ProcessingEvent = {
+  videoId: string;
+  user: UserContextProps;
+
+  inputBucket: string;
+  inputKey: string;
+  outputBucket: string;
+  outputZipKey: string;
+
+  contentType: string;
+  size: number;
+  originalFileName: string;
+  event: string;
+};
 
 export interface VideoGateway {
   createPending(input: Omit<VideoMetadata, 'status'>): Promise<VideoMetadata>;
@@ -23,14 +39,5 @@ export interface VideoGateway {
     expiresInSeconds: number;
   }): Promise<string>;
 
-  publishProcessingEvent(input: {
-    videoId: string;
-    userId: string;
-    inputBucket: string;
-    inputKey: string;
-    outputBucket: string;
-    outputZipKey: string;
-    contentType: string;
-    size: number;
-  }): Promise<void>;
+  publishProcessingEvent(input: ProcessingEvent): Promise<void>;
 }

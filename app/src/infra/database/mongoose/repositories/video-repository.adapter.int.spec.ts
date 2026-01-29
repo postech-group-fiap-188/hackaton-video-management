@@ -1,5 +1,7 @@
+
 import { MongooseVideoRepositoryAdapter } from './video-repository.adapter';
 import type { Model } from 'mongoose';
+import { UserContext } from 'src/contexts/video/domain/value-objects/user-context';
 
 type VideoLean = {
   id: string;
@@ -32,6 +34,8 @@ function makeLean(overrides: Partial<VideoLean> = {}): VideoLean {
   };
 }
 
+const makeUser = (id = 'u1') => UserContext.create({ id });
+
 describe('MongooseVideoRepositoryAdapter', () => {
   const createMock = jest.fn();
   const findMock = jest.fn();
@@ -46,7 +50,6 @@ describe('MongooseVideoRepositoryAdapter', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-
 
     leanMock.mockReset();
     sortMock.mockReset().mockReturnValue({ lean: leanMock });
@@ -63,7 +66,7 @@ describe('MongooseVideoRepositoryAdapter', () => {
     repo = new MongooseVideoRepositoryAdapter(model as Model<any>);
   });
 
-  it('createPending: deve criar doc com status PENDING e retornar VideoMetadata', async () => {
+  it('createPending: cria doc com status PENDING + userId (do VO) e retorna domínio com user VO', async () => {
     const lean = makeLean({ status: 'PENDING' });
 
     const toObject = jest.fn().mockReturnValue(lean);
@@ -71,12 +74,13 @@ describe('MongooseVideoRepositoryAdapter', () => {
 
     const result = await repo.createPending({
       id: 'v1',
-      userId: 'u1',
+      user: makeUser('u1'),
       inputBucket: 'in-bucket',
       inputKey: 'in-key',
       originalFileName: 'video.mp4',
       contentType: 'video/mp4',
       size: 123,
+      errorMessage: undefined,
       createdAt: lean.createdAt,
       updatedAt: lean.updatedAt,
     } as any);
@@ -88,15 +92,17 @@ describe('MongooseVideoRepositoryAdapter', () => {
         status: 'PENDING',
       }),
     );
-
     expect(toObject).toHaveBeenCalled();
 
-    expect(result).toEqual(lean);
+    expect(result.id).toBe('v1');
+    expect(result.user.id).toBe('u1');
+    expect(result.status).toBe('PENDING');
+    expect(result.inputBucket).toBe('in-bucket');
+    expect(result.inputKey).toBe('in-key');
   });
 
-  it('listByUserId: deve buscar, ordenar e mapear para domínio', async () => {
+  it('listByUserId: busca, ordena e mapeia para domínio com user VO', async () => {
     const docs = [makeLean({ id: 'v1' }), makeLean({ id: 'v2' })];
-
     leanMock.mockResolvedValue(docs);
 
     const result = await repo.listByUserId('u1');
@@ -105,12 +111,15 @@ describe('MongooseVideoRepositoryAdapter', () => {
     expect(sortMock).toHaveBeenCalledWith({ createdAt: -1 });
     expect(leanMock).toHaveBeenCalled();
 
-    expect(result).toEqual(docs);
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe('v1');
+    expect(result[0].user.id).toBe('u1');
+    expect(result[1].id).toBe('v2');
+    expect(result[1].user.id).toBe('u1');
   });
 
-  it('findById: deve retornar VideoMetadata quando encontrar (branch doc true)', async () => {
-    const found = makeLean({ id: 'v1' });
-
+  it('findById: retorna domínio quando encontrar (branch doc true)', async () => {
+    const found = makeLean({ id: 'v1', userId: 'u1' });
 
     const lean = jest.fn().mockResolvedValue(found);
     findOneMock.mockReturnValue({ lean });
@@ -120,10 +129,12 @@ describe('MongooseVideoRepositoryAdapter', () => {
     expect(findOneMock).toHaveBeenCalledWith({ id: 'v1' });
     expect(lean).toHaveBeenCalled();
 
-    expect(result).toEqual(found);
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe('v1');
+    expect(result!.user.id).toBe('u1');
   });
 
-  it('findById: deve retornar null quando não encontrar (branch doc false)', async () => {
+  it('findById: retorna null quando não encontrar (branch doc false)', async () => {
     const lean = jest.fn().mockResolvedValue(null);
     findOneMock.mockReturnValue({ lean });
 
@@ -135,7 +146,7 @@ describe('MongooseVideoRepositoryAdapter', () => {
     expect(result).toBeNull();
   });
 
-  it('updateStatus: deve retornar true quando matchedCount === 1', async () => {
+  it('updateStatus: retorna true quando matchedCount === 1', async () => {
     updateOneMock.mockResolvedValue({ matchedCount: 1 });
 
     const ok = await repo.updateStatus({
@@ -150,7 +161,7 @@ describe('MongooseVideoRepositoryAdapter', () => {
     expect(ok).toBe(true);
   });
 
-  it('updateStatus: deve retornar false quando matchedCount !== 1', async () => {
+  it('updateStatus: retorna false quando matchedCount !== 1', async () => {
     updateOneMock.mockResolvedValue({ matchedCount: 0 });
 
     const ok = await repo.updateStatus({

@@ -1,98 +1,235 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Hackathon Video Management API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+![Node.js](https://img.shields.io/badge/node.js-20%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
+![NestJS](https://img.shields.io/badge/nestjs-%23E0234E.svg?style=for-the-badge&logo=nestjs&logoColor=white)
+![Jest](https://img.shields.io/badge/-jest-%23C21325?style=for-the-badge&logo=jest&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+![LocalStack](https://img.shields.io/badge/localstack-FFFFFF?style=for-the-badge&logo=localstack&logoColor=black)
+![Amazon S3](https://img.shields.io/badge/Amazon%20S3-569A31?style=for-the-badge&logo=amazons3&logoColor=white)
+![Amazon SNS](https://img.shields.io/badge/Amazon%20SNS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
+![Amazon SQS](https://img.shields.io/badge/Amazon%20SQS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
+![MongoDB](https://img.shields.io/badge/mongodb-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Projeto desenvolvido referente ao Hackathon da quinta fase da Postech em Software Architecture - FIAP.
 
-## Description
+A API recebe **1 ou mais vídeos**, faz **upload multipart no S3**, salva **metadados no MongoDB** (simulando DocumentDB) com status `PENDING` e publica um evento no **SNS** para outro microserviço processar.  
+Também lista vídeos do usuário, atualiza status via evento (fila SQS) e gera **URL assinada** para download do ZIP processado em **outro bucket**.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Estrutura (Arquitetura Hexagonal / Ports & Adapters)
 
-```bash
-$ npm install
+```
+docker-compose.yml
+docker-compose.debug.yml
+Dockerfile
+app/
+├── .env.docker
+├── docker/
+│ ├── entrypoint.sh
+│ └── entrypoint.dev.sh
+├── localstack/
+│ ├── init-aws.sh
+│ └── sns-debug.sh
+└── src/
+├── main.ts
+├── app.module.ts
+├── interfaces/
+│ └── video-data-source.ts
+├── infra/
+│ ├── api/
+│ │ ├── api.module.ts
+│ │ ├── controllers/
+│ │ │ └── videos.http.controller.ts
+│ │ └── common/
+│ │ └── logger/
+│ │ └── app-logger.service.ts
+│ ├── aws/
+│ │ ├── aws.module.ts
+│ │ ├── s3/
+│ │ │ └── s3-storage.adapter.ts
+│ │ ├── sns/
+│ │ │ └── sns-video-processing.adapter.ts
+│ │ └── sqs/
+│ │ └── (status consumer / handler)
+│ └── database/
+│ ├── database.module.ts
+│ └── mongoose/
+│ ├── schemas/
+│ │ └── video.schema.ts
+│ └── repositories/
+│ └── video-repository.adapter.ts
+└── contexts/
+└── video/
+├── video.module.ts
+├── domain/
+│ ├── video-metadata.ts
+│ └── value-objects/
+│ └── video-status.ts
+├── application/
+│ ├── errors/
+│ │ └── app-error.ts
+│ ├── gateways/
+│ │ ├── video-gateway.ts
+│ │ └── video-gateway.token.ts
+│ └── usecases/
+│ ├── upload-videos.ts
+│ ├── list-user-videos.ts
+│ ├── get-processed-video.ts
+│ └── update-video-status.ts
+└── adapters/
+├── controllers/
+│ └── video-controller.ts
+├── gateway/
+│ └── video-gateway-impl.ts
+└── presenters/
+├── upload-videos.presenter.ts
+├── list-videos.presenter.ts
+└── download-processed-zip.presenter.ts
 ```
 
-## Compile and run the project
+---
+
+## Features
+
+### 1) Upload de 1 ou mais vídeos (multipart)
+
+- Recebe upload via API (`multipart/form-data`) com **1..N arquivos**
+- Validações básicas de vídeo (content-type / tamanho)
+- Cria metadado no MongoDB com status `PENDING`
+- Faz upload **multipart** para o bucket de **input**
+- Publica evento no **SNS** (`video-processing-topic`) para outro MS processar
+- Remove arquivo temporário sempre (sucesso ou erro)
+
+### 2) Listar vídeos do usuário
+
+- Retorna metadados por `email`, ordenados por criação
+
+### 3) Atualizar status via evento (SQS)
+
+- Consome evento de status em uma fila SQS (ex.: `video-status-queue`)
+- Atualiza metadado para `SUCCEEDED` ou `ERROR` (`errorMessage` opcional)
+
+### 4) Download do ZIP processado (outro bucket)
+
+- Gera **presigned URL** para download do ZIP no bucket de **output**
+- Padrão de key do zip: `<email>-<videoId>-processed.zip`
+- Valida ownership (email)
+
+---
+
+## Pré-requisitos (Local)
+
+- **Docker**
+- **Docker Compose**
+
+---
+
+## Rodar localmente com Docker + LocalStack
+
+### 1) Subir tudo (Mongo + LocalStack + API)
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+docker compose up --build
 ```
 
-## Run tests
+## Serviços
+
+- API: <http://localhost:3000>
+- Swagger: <http://localhost:3000/docs>
+- LocalStack: <http://localhost:4566>
+- Mongo: mongodb://localhost:27017
+
+## Como verificar se o evento foi publicado no SNS (LocalStack)
+
+1. Ver recursos criados
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker exec -it hackaton-video-management_localstack awslocal s3 ls
+docker exec -it hackaton-video-management_localstack awslocal sns list-topics
+docker exec -it hackaton-video-management_localstack awslocal sqs list-queues
+docker exec -it hackaton-video-management_localstack awslocal sns list-subscriptions
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+1. Publicar manualmente um teste e consumir na debug queue
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+TOPIC_ARN=$(docker exec -it hackaton-video-management_localstack \
+  awslocal sns list-topics --query 'Topics[0].TopicArn' --output text)
+
+docker exec -it hackaton-video-management_localstack \
+  awslocal sns publish --topic-arn "$TOPIC_ARN" --message '{"ping":"pong"}'
+
+DEBUG_URL=$(docker exec -it hackaton-video-management_localstack \
+  awslocal sqs get-queue-url --queue-name video-processing-debug-queue --query 'QueueUrl' --output text)
+
+docker exec -it hackaton-video-management_localstack \
+  awslocal sqs receive-message --queue-url "$DEBUG_URL" --max-number-of-messages 1
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Se aparecer mensagem, o tópico e a assinatura estão funcionando.**
 
-## Resources
+## Variáveis de ambiente (.env.docker)
 
-Check out a few resources that may come in handy when working with NestJS:
+```text
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Exemplo (ajuste conforme seus nomes reais):
 
-## Support
+AWS_REGION=us-east-1
+AWS_ENDPOINT_URL=http://localstack:4566
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
 
-## Stay in touch
+S3_INPUT_BUCKET_NAME=videos-input
+S3_OUTPUT_BUCKET_NAME=videos-processed
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+SNS_PROCESSING_TOPIC_ARN=arn:aws:sns:us-east-1:000000000000:video-processing-topic
 
-## License
+# fila que sua aplicação consome para status (não é a debug)
+SQS_STATUS_QUEUE_URL=http://localstack:4566/000000000000/video-status-queue
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+MONGO_URI=mongodb://mongo:27017
+MONGO_DB=hackaton
+```
+
+## Rotas principais (API)
+
+O path exato depende do seu videos.http.controller.ts. Exemplo típico:
+
+> POST /videos/upload (multipart: 1..N arquivos)
+
+> GET /videos (lista vídeos do usuário autenticado)
+
+> GET /videos/:videoId/processed-zip (gera presign do ZIP no bucket de output)
+
+## Eventos
+
+> Consumer SQS para status (fila video-status-queue) → atualiza metadados
+
+## Swagger
+
+> GET /docs
+
+## Testes Unitários
+
+```bash
+cd app
+npm test
+```
+
+## Integração (Mongo in-memory + mocks de AWS)
+
+```bash
+cd app
+npm run test:int
+```
+
+## 👨‍💻 Autores
+
+- Douglas Vinicius Caldas Bonin (<https://github.com/dviniciusbonin>)
+- Layssa Hillary (<https://github.com/layssahillary>)
+- Thiago Savin (<https://github.com/Thiagosavin>)
+- Shayna Bauer (<https://github.com/Shaysilvares>)
+- Paulo Gomes (<https://github.com/cavalcante001>)

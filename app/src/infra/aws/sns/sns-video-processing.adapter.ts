@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+import { UserContextProps } from 'src/contexts/video/domain/value-objects/user-context';
 
 export type ProcessingEvent = {
   videoId: string;
-  userId: string;
+  user: UserContextProps;
   inputBucket: string;
   inputKey: string;
   outputBucket: string;
   outputZipKey: string;
   contentType: string;
   size: number;
+  event: string;
+  originalFileName: string;
 };
 
 @Injectable()

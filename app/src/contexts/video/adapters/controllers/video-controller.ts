@@ -1,17 +1,20 @@
-import { VideoDataSource } from 'src/interfaces/video-data-source';
+import type { VideoDataSource } from 'src/interfaces/video-data-source';
+
 import { UploadVideos } from '../../application/usecases/upload-videos';
 import { ListUserVideos } from '../../application/usecases/list-user-videos';
 import { UpdateVideoStatus } from '../../application/usecases/update-video-status';
+import { GetProcessedVideo } from '../../application/usecases/get-processed-video';
+
 import { UploadVideosPresenter } from '../presenters/upload-videos.presenter';
 import { ListVideosPresenter } from '../presenters/list-videos.presenter';
 import { DownloadProcessedZipPresenter } from '../presenters/download-processed-zip.presenter';
-import { GetProcessedVideo } from '../../application/usecases/get-processed-video';
+import { UserContextProps } from '../../domain/value-objects/user-context';
 
 export class VideoController {
   constructor(private readonly ds: VideoDataSource) {}
 
   async upload(
-    userId: string,
+    user: UserContextProps,
     files: Array<{
       originalFileName: string;
       contentType: string;
@@ -24,10 +27,8 @@ export class VideoController {
       size: number;
     }) => void,
   ) {
-    const gateway = this.ds.gateway;
-
     const usecase = new UploadVideos(
-      gateway,
+      this.ds.gateway,
       {
         inputBucket: this.ds.config.inputBucket,
         outputBucket: this.ds.config.outputBucket,
@@ -35,24 +36,24 @@ export class VideoController {
       this.ds.logger,
     );
 
-    const out = await usecase.execute({ userId, files, validate });
+    const out = await usecase.execute({ user, files, validate });
     return UploadVideosPresenter.toJSON(out.items);
   }
 
-  async list(userId: string) {
+  async list(user: UserContextProps) {
     const usecase = new ListUserVideos(this.ds.gateway, this.ds.logger);
-    const out = await usecase.execute(userId);
+    const out = await usecase.execute(user);
     return ListVideosPresenter.toJSON(out.videos);
   }
 
-  async downloadProcessedZip(userId: string, videoId: string) {
+  async downloadProcessedZip(user: UserContextProps, videoId: string) {
     const usecase = new GetProcessedVideo(
       this.ds.gateway,
       this.ds.config.outputBucket,
       this.ds.logger,
     );
 
-    const out = await usecase.execute({ userId, videoId });
+    const out = await usecase.execute({ user, videoId });
     return DownloadProcessedZipPresenter.toJSON(out);
   }
 

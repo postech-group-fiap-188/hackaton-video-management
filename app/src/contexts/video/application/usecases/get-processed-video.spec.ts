@@ -1,9 +1,10 @@
+
 import { GetProcessedVideo } from './get-processed-video';
 import { AppError } from '../errors/app-error';
 import type { VideoGateway } from '../gateways/video-gateway';
-import { VideoMetadata } from '../../domain/video-metadata';
+import type { VideoMetadata } from '../../domain/video-metadata';
+import { UserContext } from 'src/contexts/video/domain/value-objects/user-context';
 import { AppLoggerService } from 'src/infra/api/common/logger/app-logger.service';
-
 
 type LoggerMock = {
   info: jest.Mock<void, [string, Record<string, unknown>?]>;
@@ -28,8 +29,8 @@ const makeGateway = (): GatewayMock =>
 const makeMeta = (overrides: Partial<VideoMetadata> = {}): VideoMetadata => {
   const base: VideoMetadata = {
     id: 'v1',
-    userId: 'u1',
-    status: 'PENDING',
+    user: UserContext.create({ id: 'u1', email: 'u1@x.com' }),
+    status: 'PENDING' as any,
     inputBucket: 'in-bucket',
     inputKey: 'u1-v1-source.mp4',
     originalFileName: 'video.mp4',
@@ -45,6 +46,7 @@ const makeMeta = (overrides: Partial<VideoMetadata> = {}): VideoMetadata => {
 
 describe('GetProcessedVideo', () => {
   const outputBucket = 'out-bucket';
+  const user = { id: 'u1', email: 'u1@x.com' };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,12 +58,15 @@ describe('GetProcessedVideo', () => {
 
     gateway.findById.mockResolvedValueOnce(null);
 
-    const usecase = new GetProcessedVideo(gateway as unknown as VideoGateway, outputBucket, logger as unknown as AppLoggerService);
+    const usecase = new GetProcessedVideo(
+      gateway as unknown as VideoGateway,
+      outputBucket,
+      logger as unknown as AppLoggerService,
+    );
 
-    await expect(usecase.execute({ userId: 'u1', videoId: 'v1' })).rejects.toBeInstanceOf(AppError);
+    await expect(usecase.execute({ user, videoId: 'v1' })).rejects.toBeInstanceOf(AppError);
 
     expect(gateway.presignGetObject).not.toHaveBeenCalled();
-
     expect(logger.warn).toHaveBeenCalledWith(
       'get_processed_video.not_found',
       expect.objectContaining({ userId: 'u1', videoId: 'v1' }),
@@ -72,14 +77,19 @@ describe('GetProcessedVideo', () => {
     const gateway = makeGateway();
     const logger = makeLogger();
 
-    gateway.findById.mockResolvedValueOnce(makeMeta({ userId: 'owner', status: 'SUCCEEDED' }));
+    gateway.findById.mockResolvedValueOnce(
+      makeMeta({ user: UserContext.create({ id: 'owner' }), status: 'SUCCEEDED' as any }),
+    );
 
-    const usecase = new GetProcessedVideo(gateway as unknown as VideoGateway, outputBucket, logger as unknown as AppLoggerService);
+    const usecase = new GetProcessedVideo(
+      gateway as unknown as VideoGateway,
+      outputBucket,
+      logger as unknown as AppLoggerService,
+    );
 
-    await expect(usecase.execute({ userId: 'u1', videoId: 'v1' })).rejects.toBeInstanceOf(AppError);
+    await expect(usecase.execute({ user, videoId: 'v1' })).rejects.toBeInstanceOf(AppError);
 
     expect(gateway.presignGetObject).not.toHaveBeenCalled();
-
     expect(logger.warn).toHaveBeenCalledWith(
       'get_processed_video.forbidden',
       expect.objectContaining({ userId: 'u1', videoId: 'v1', ownerUserId: 'owner' }),
@@ -90,14 +100,17 @@ describe('GetProcessedVideo', () => {
     const gateway = makeGateway();
     const logger = makeLogger();
 
-    gateway.findById.mockResolvedValueOnce(makeMeta({ status: 'PENDING' }));
+    gateway.findById.mockResolvedValueOnce(makeMeta({ status: 'PENDING' as any }));
 
-    const usecase = new GetProcessedVideo(gateway as unknown as VideoGateway, outputBucket, logger as unknown as AppLoggerService);
+    const usecase = new GetProcessedVideo(
+      gateway as unknown as VideoGateway,
+      outputBucket,
+      logger as unknown as AppLoggerService,
+    );
 
-    await expect(usecase.execute({ userId: 'u1', videoId: 'v1' })).rejects.toBeInstanceOf(AppError);
+    await expect(usecase.execute({ user, videoId: 'v1' })).rejects.toBeInstanceOf(AppError);
 
     expect(gateway.presignGetObject).not.toHaveBeenCalled();
-
     expect(logger.warn).toHaveBeenCalledWith(
       'get_processed_video.not_ready',
       expect.objectContaining({ userId: 'u1', videoId: 'v1', status: 'PENDING' }),
@@ -108,12 +121,16 @@ describe('GetProcessedVideo', () => {
     const gateway = makeGateway();
     const logger = makeLogger();
 
-    gateway.findById.mockResolvedValueOnce(makeMeta({ status: 'SUCCEEDED' }));
+    gateway.findById.mockResolvedValueOnce(makeMeta({ status: 'SUCCEEDED' as any }));
     gateway.presignGetObject.mockResolvedValueOnce('https://signed-url');
 
-    const usecase = new GetProcessedVideo(gateway as unknown as VideoGateway, outputBucket, logger as unknown as AppLoggerService);
+    const usecase = new GetProcessedVideo(
+      gateway as unknown as VideoGateway,
+      outputBucket,
+      logger as unknown as AppLoggerService,
+    );
 
-    const res = await usecase.execute({ userId: 'u1', videoId: 'v1' });
+    const res = await usecase.execute({ user, videoId: 'v1' });
 
     expect(res).toEqual({
       downloadUrl: 'https://signed-url',

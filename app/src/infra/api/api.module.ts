@@ -4,7 +4,6 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
 import { DatabaseModule } from 'src/infra/database/database.module';
 import { AwsModule } from 'src/infra/aws/aws.module';
-import { AuthModule } from 'src/infra/auth/auth.module';
 
 import { VideosHttpController } from './controllers/videos-http.controller';
 import { AppLoggerService } from './common/logger/app-logger.service';
@@ -24,7 +23,6 @@ import { SnsVideoProcessingAdapter } from '../aws/sns/sns-video-processing.adapt
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     AwsModule,
-    AuthModule,
     CommonModule,
   ],
   controllers: [VideosHttpController],

@@ -1,7 +1,12 @@
 import { randomUUID } from 'crypto';
-import fs from 'fs/promises';
+import { unlink } from 'fs/promises';
 import path from 'path';
-import { VideoGateway } from '../gateways/video-gateway';
+
+import type { VideoGateway } from '../gateways/video-gateway';
+import {
+  UserContext,
+  UserContextProps,
+} from 'src/contexts/video/domain/value-objects/user-context';
 import { AppLoggerService } from 'src/infra/api/common/logger/app-logger.service';
 
 export type UploadResultItem =
@@ -31,7 +36,7 @@ export class UploadVideos {
   ) {}
 
   async execute(input: {
-    userId: string;
+    user: UserContextProps;
     files: Array<{
       originalFileName: string;
       contentType: string;
@@ -44,8 +49,10 @@ export class UploadVideos {
       size: number;
     }) => void;
   }): Promise<{ items: UploadResultItem[] }> {
+    const user = UserContext.create(input.user);
+
     this.logger.info('upload_videos.execute.start', {
-      userId: input.userId,
+      userId: user.id,
       filesCount: input.files.length,
     });
 
@@ -53,7 +60,7 @@ export class UploadVideos {
 
     const tasks: Array<Promise<UploadResultItem>> = input.files.map((f) =>
       this.processOne({
-        userId: input.userId,
+        user,
         file: f,
         now,
         validate: input.validate,
@@ -63,7 +70,7 @@ export class UploadVideos {
     const items = await Promise.all(tasks);
 
     this.logger.info('upload_videos.execute.done', {
-      userId: input.userId,
+      userId: user.id,
       filesCount: input.files.length,
       okCount: items.filter((i) => i.ok).length,
       errorCount: items.filter((i) => !i.ok).length,
@@ -73,7 +80,7 @@ export class UploadVideos {
   }
 
   private async processOne(input: {
-    userId: string;
+    user: UserContext;
     file: {
       originalFileName: string;
       contentType: string;
@@ -87,13 +94,13 @@ export class UploadVideos {
       size: number;
     }) => void;
   }): Promise<UploadResultItem> {
-    const { file: f } = input;
+    const { file: f, user } = input;
 
     const videoId = randomUUID();
     let createdPending = false;
 
     this.logger.info('upload_videos.process_one.start', {
-      userId: input.userId,
+      userId: user.id,
       videoId,
       originalFileName: f.originalFileName,
       contentType: f.contentType,
@@ -108,18 +115,18 @@ export class UploadVideos {
       });
 
       this.logger.info('upload_videos.validate.ok', {
-        userId: input.userId,
+        userId: user.id,
         videoId,
         originalFileName: f.originalFileName,
       });
 
       const ext = path.extname(f.originalFileName).toLowerCase();
-      const inputKey = `${input.userId}-${videoId}-source${ext}`;
-      const outputZipKey = `${input.userId}-${videoId}-processed.zip`;
+      const inputKey = `${user.id}-${videoId}-source${ext}`;
+      const outputZipKey = `${user.id}-${videoId}-processed.zip`;
 
       await this.gateway.createPending({
         id: videoId,
-        userId: input.userId,
+        user,
         inputBucket: this.cfg.inputBucket,
         inputKey,
         originalFileName: f.originalFileName,
@@ -133,7 +140,7 @@ export class UploadVideos {
       createdPending = true;
 
       this.logger.info('upload_videos.create_pending.ok', {
-        userId: input.userId,
+        userId: user.id,
         videoId,
         inputBucket: this.cfg.inputBucket,
         inputKey,
@@ -147,7 +154,7 @@ export class UploadVideos {
       });
 
       this.logger.info('upload_videos.upload_multipart.ok', {
-        userId: input.userId,
+        userId: user.id,
         videoId,
         bucket: this.cfg.inputBucket,
         key: inputKey,
@@ -155,24 +162,26 @@ export class UploadVideos {
 
       await this.gateway.publishProcessingEvent({
         videoId,
-        userId: input.userId,
+        user: user.toProps(),
         inputBucket: this.cfg.inputBucket,
         inputKey,
         outputBucket: this.cfg.outputBucket,
         outputZipKey,
         contentType: f.contentType,
         size: f.size,
+        originalFileName: f.originalFileName,
+        event: 'VIDEO_PENDING',
       });
 
       this.logger.info('upload_videos.publish_processing_event.ok', {
-        userId: input.userId,
+        userId: user.id,
         videoId,
         outputBucket: this.cfg.outputBucket,
         outputZipKey,
       });
 
       this.logger.info('upload_videos.process_one.success', {
-        userId: input.userId,
+        userId: user.id,
         videoId,
         inputKey,
         outputZipKey,
@@ -189,7 +198,7 @@ export class UploadVideos {
       const errorMessage = e instanceof Error ? e.message : 'upload_failed';
 
       this.logger.error('upload_videos.process_one.failed', {
-        userId: input.userId,
+        userId: user.id,
         videoId,
         originalFileName: f.originalFileName,
         errorMessage,
@@ -206,7 +215,7 @@ export class UploadVideos {
           });
 
           this.logger.warn('upload_videos.update_status.set_error', {
-            userId: input.userId,
+            userId: user.id,
             videoId,
             errorMessage,
           });
@@ -217,7 +226,7 @@ export class UploadVideos {
               : 'update_status_failed';
 
           this.logger.error('upload_videos.update_status.failed', {
-            userId: input.userId,
+            userId: user.id,
             videoId,
             errorMessage,
             updateErrorMessage: updateErrMsg,
@@ -228,7 +237,7 @@ export class UploadVideos {
         }
       } else {
         this.logger.warn('upload_videos.update_status.skipped', {
-          userId: input.userId,
+          userId: user.id,
           videoId,
           reason: 'pending_not_created',
           errorMessage,
@@ -244,9 +253,9 @@ export class UploadVideos {
       } as const;
     } finally {
       try {
-        await fs.unlink(f.tempFilePath);
+        await unlink(f.tempFilePath);
         this.logger.info('upload_videos.temp_file.deleted', {
-          userId: input.userId,
+          userId: user.id,
           videoId,
           tempFilePath: f.tempFilePath,
         });
@@ -255,7 +264,7 @@ export class UploadVideos {
           unlinkErr instanceof Error ? unlinkErr.message : 'unlink_failed';
 
         this.logger.warn('upload_videos.temp_file.delete_failed', {
-          userId: input.userId,
+          userId: user.id,
           videoId,
           tempFilePath: f.tempFilePath,
           unlinkErrorMessage: unlinkErrMsg,

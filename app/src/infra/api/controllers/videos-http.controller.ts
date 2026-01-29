@@ -7,7 +7,6 @@ import {
   Post,
   Req,
   UploadedFiles,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -17,22 +16,23 @@ import fs from 'fs';
 import path from 'path';
 
 import {
-  ApiBearerAuth,
   ApiBody,
   ApiConsumes,
   ApiParam,
+  ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
 
-import { CognitoAuthGuard } from 'src/infra/auth/cognito-auth.guard';
 import { VideoController } from 'src/contexts/video/adapters/controllers/video-controller';
 import type { VideoDataSource } from 'src/interfaces/video-data-source';
 import { VIDEO_DATA_SOURCE } from 'src/interfaces/video-data-source.token';
 import { AppError } from 'src/contexts/video/application/errors/app-error';
+import type { UserContextProps } from 'src/contexts/video/domain/value-objects/user-context';
+import { ApiUserHeaders } from '../dtos/api-header.dto';
 
 @ApiTags('videos')
-@ApiBearerAuth()
-@UseGuards(CognitoAuthGuard)
+@ApiSecurity('x-user-id')
+@ApiSecurity('x-user-email')
 @Controller()
 export class VideosHttpController {
   private readonly controller: VideoController;
@@ -40,8 +40,8 @@ export class VideosHttpController {
   constructor(@Inject(VIDEO_DATA_SOURCE) private readonly ds: VideoDataSource) {
     this.controller = new VideoController(ds);
   }
-
   @Post('videos/upload')
+  @ApiUserHeaders()
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -75,10 +75,11 @@ export class VideosHttpController {
     /* c8 ignore next */
     @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
-    const userId = req.user?.sub;
-    if (!userId) throw new BadRequestException('Missing user');
-    if (!files || files.length === 0)
+    const user = getUserPropsFromHeaders(req);
+
+    if (!files || files.length === 0) {
       throw new BadRequestException('videos is required');
+    }
 
     const mapped = files.map((f) => ({
       originalFileName: f.originalname,
@@ -87,28 +88,68 @@ export class VideosHttpController {
       tempFilePath: f.path,
     }));
 
-    return this.controller.upload(userId, mapped, (m) =>
+    return this.controller.upload(user, mapped, (m) =>
       validateVideo(m, this.ds.config.maxVideoBytes),
     );
   }
 
   @Get('users/me/videos')
+  @ApiUserHeaders()
   async list(@Req() req: Request) {
-    const userId = req.user?.sub;
-    if (!userId) throw new BadRequestException('Missing user');
-    return this.controller.list(userId);
+    const user = getUserPropsFromHeaders(req);
+    return this.controller.list(user);
   }
 
   @Get('videos/:videoId/processed-zip')
+  @ApiUserHeaders()
   @ApiParam({ name: 'videoId' })
   async downloadProcessedZip(
     @Req() req: Request,
     @Param('videoId') videoId: string,
   ) {
-    const userId = req.user?.sub;
-    if (!userId) throw new BadRequestException('Missing user');
-    return this.controller.downloadProcessedZip(userId, videoId);
+    const user = getUserPropsFromHeaders(req);
+    return this.controller.downloadProcessedZip(user, videoId);
   }
+}
+
+function getUserPropsFromHeaders(req: Request): UserContextProps {
+  const headers = req.headers as Record<string, unknown>;
+  const props = parseXUserHeaders(headers);
+
+  const id = props.id;
+  if (!id) throw new BadRequestException('Missing user');
+
+  return props as UserContextProps;
+}
+
+function parseXUserHeaders(
+  headers: Record<string, unknown>,
+): Record<string, string> {
+  const props: Record<string, string> = {};
+
+  for (const [k, v] of Object.entries(headers)) {
+    const key = k.toLowerCase();
+    if (!key.startsWith('x-user-')) continue;
+
+    const value = v as string;
+    if (!value) continue;
+
+    const suffix = key.slice('x-user-'.length);
+    const camel = toCamelCase(suffix);
+    props[camel] = value;
+  }
+
+  return props;
+}
+
+function toCamelCase(input: string): string {
+  const parts = input.split('-').filter(Boolean);
+  if (parts.length === 0) return input;
+
+  const [first, ...rest] = parts;
+  return (
+    first + rest.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join('')
+  );
 }
 
 function validateVideo(
@@ -127,22 +168,27 @@ function validateVideo(
 
   if (!allowedExt.has(ext))
     throw new AppError(
-      'Invalid video extension',
+      'INVALID_VIDEO_EXTENSION',
       'INVALID_VIDEO_EXTENSION',
       400,
       { ext },
     );
+
   if (!allowedMime.has(meta.contentType))
     throw new AppError(
-      'Invalid video mimetype',
+      'INVALID_VIDEO_MIMETYPE',
       'INVALID_VIDEO_MIMETYPE',
       400,
-      { mimetype: meta.contentType },
+      {
+        mimetype: meta.contentType,
+      },
     );
+
   if (meta.size <= 0)
-    throw new AppError('Invalid video size', 'INVALID_VIDEO_SIZE', 400);
+    throw new AppError('INVALID_VIDEO_SIZE', 'INVALID_VIDEO_SIZE', 400);
+
   if (meta.size > maxBytes)
-    throw new AppError('Video too large', 'VIDEO_TOO_LARGE', 413, {
+    throw new AppError('VIDEO_TOO_LARGE', 'VIDEO_TOO_LARGE', 413, {
       maxBytes,
       size: meta.size,
     });

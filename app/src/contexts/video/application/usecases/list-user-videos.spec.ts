@@ -19,34 +19,34 @@ const makeGateway = () =>
   }) as unknown as jest.Mocked<Pick<VideoGateway, 'listByUserId'>>;
 
 describe('ListUserVideos', () => {
+  const user = { id: 'u1', email: 'u1@x.com' };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  test('returns videos and logs start/success', async () => {
+  test('returns videos and logs start/done', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
 
-    gateway.listByUserId.mockResolvedValueOnce([
-      { id: 'v1' },
-      { id: 'v2' },
-    ] as any);
+    gateway.listByUserId.mockResolvedValueOnce(
+      [{ id: 'v1' }, { id: 'v2' }] as any,
+    );
 
     const usecase = new ListUserVideos(gateway as any, logger as any);
 
-    const res = await usecase.execute('u1');
+    const res = await usecase.execute(user);
 
     expect(res.videos).toHaveLength(2);
     expect(gateway.listByUserId).toHaveBeenCalledWith('u1');
 
-    expect(logger.info).toHaveBeenCalledWith(
-      'list_user_videos.start',
-      { userId: 'u1' },
-    );
+    expect(logger.info).toHaveBeenNthCalledWith(1, 'list_user_videos.start', {
+      userId: 'u1',
+    });
 
-    expect(logger.info).toHaveBeenCalledWith(
-      'list_user_videos.success',
-      { userId: 'u1', count: 2 },
-    );
+    expect(logger.info).toHaveBeenNthCalledWith(2, 'list_user_videos.done', {
+      userId: 'u1',
+      count: 2,
+    });
   });
 });

@@ -1,8 +1,9 @@
+import { UserContext } from './value-objects/user-context';
 import { VideoStatus } from './value-objects/video-status';
 
 export interface VideoMetadata {
   id: string;
-  userId: string;
+  user: UserContext;
 
   inputBucket: string;
   inputKey: string;

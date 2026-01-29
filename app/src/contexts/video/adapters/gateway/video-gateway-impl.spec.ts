@@ -1,8 +1,10 @@
+
 import { VideoGatewayImpl } from './video-gateway-impl';
-import type { VideoMetadata } from '../../domain/video-metadata';
+import type { VideoMetadata } from 'src/contexts/video/domain/video-metadata';
+import { UserContext } from 'src/contexts/video/domain/value-objects/user-context';
 
 type Repo = {
-  createPending: (input: Omit<VideoMetadata, 'status'> & { id?: string }) => Promise<unknown>;
+  createPending: (input: Omit<VideoMetadata, 'status'>) => Promise<unknown>;
   listByUserId: (userId: string) => Promise<unknown>;
   findById: (videoId: string) => Promise<unknown>;
   updateStatus: (input: {
@@ -47,6 +49,10 @@ const makeSns = (): jest.Mocked<Sns> => ({
 });
 
 describe('VideoGatewayImpl', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('delegates repo methods', async () => {
     const repo = makeRepo();
     const s3 = makeS3();
@@ -73,9 +79,10 @@ describe('VideoGatewayImpl', () => {
     });
 
     const now = new Date();
+
     await gtw.createPending({
       id: 'v1',
-      userId: 'u1',
+      user: UserContext.create({ id: 'u1' }),
       inputBucket: 'in',
       inputKey: 'k',
       originalFileName: 'a.mp4',
@@ -84,7 +91,7 @@ describe('VideoGatewayImpl', () => {
       errorMessage: undefined,
       createdAt: now,
       updatedAt: now,
-    } as never);
+    } as any);
 
     expect(repo.createPending).toHaveBeenCalledTimes(1);
   });
@@ -105,6 +112,7 @@ describe('VideoGatewayImpl', () => {
       filePath: '/tmp/f',
       contentType: 'video/mp4',
     });
+
     expect(s3.uploadMultipartFromPath).toHaveBeenCalledWith({
       bucket: 'in',
       key: 'k',
@@ -117,6 +125,7 @@ describe('VideoGatewayImpl', () => {
       key: 'zip',
       expiresInSeconds: 3600,
     });
+
     expect(url).toBe('http://signed');
     expect(s3.presignGetObject).toHaveBeenCalledWith({
       bucket: 'out',
@@ -125,7 +134,7 @@ describe('VideoGatewayImpl', () => {
     });
   });
 
-  it('enqueueProcessing publishes via SNS', async () => {
+  it('publishProcessingEvent publishes via SNS (wrap { event })', async () => {
     const repo = makeRepo();
     const s3 = makeS3();
     const sns = makeSns();
@@ -136,16 +145,18 @@ describe('VideoGatewayImpl', () => {
 
     const payload = {
       videoId: 'v1',
-      userId: 'u1',
+      user: { id: 'u1', email: 'u@x.com' }, 
       inputBucket: 'in',
       inputKey: 'k',
       outputBucket: 'out',
       outputZipKey: 'z',
       contentType: 'video/mp4',
       size: 10,
+      originalFileName: 'video.mp4',
+      event: 'VIDEO_PENDING',
     };
 
-    await gtw.publishProcessingEvent(payload);
+    await gtw.publishProcessingEvent(payload as any);
 
     expect(sns.publishProcessingEvent).toHaveBeenCalledWith({ event: payload });
   });

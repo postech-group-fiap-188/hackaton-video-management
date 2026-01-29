@@ -2,6 +2,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { VideoMetadata } from 'src/contexts/video/domain/video-metadata';
 import { VideoModel } from '../schemas/video.schema';
+import { UserContext } from 'src/contexts/video/domain/value-objects/user-context';
 
 type VideoLean = {
   id: string;
@@ -25,7 +26,14 @@ export class MongooseVideoRepositoryAdapter {
   async createPending(
     input: Omit<VideoMetadata, 'status'>,
   ): Promise<VideoMetadata> {
-    const doc = await this.model.create({ ...input, status: 'PENDING' });
+    const { user, ...rest } = input;
+
+    const doc = await this.model.create({
+      ...rest,
+      userId: user.id,
+      status: 'PENDING',
+    });
+
     return toDomain(doc.toObject() as VideoLean);
   }
 
@@ -34,6 +42,7 @@ export class MongooseVideoRepositoryAdapter {
       .find({ userId })
       .sort({ createdAt: -1 })
       .lean<VideoLean[]>();
+
     return docs.map(toDomain);
   }
 
@@ -60,14 +69,18 @@ export class MongooseVideoRepositoryAdapter {
 function toDomain(d: VideoLean): VideoMetadata {
   return {
     id: d.id,
-    userId: d.userId,
+    user: UserContext.create({ id: d.userId }),
+
     inputBucket: d.inputBucket,
     inputKey: d.inputKey,
+
     originalFileName: d.originalFileName,
     contentType: d.contentType,
     size: d.size,
+
     status: d.status,
     errorMessage: d.errorMessage,
+
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
   };

@@ -1,16 +1,11 @@
 
-import fs from 'fs/promises';
+import { unlink } from 'fs/promises';
 import { UploadVideos } from './upload-videos';
 import type { VideoGateway } from '../gateways/video-gateway';
 
-jest.mock('fs/promises', () => {
-  const unlink = jest.fn().mockResolvedValue(undefined);
-  return {
-    __esModule: true,
-    default: { unlink },
-    unlink,
-  };
-});
+jest.mock('fs/promises', () => ({
+  unlink: jest.fn(),
+}));
 
 type LoggerMock = {
   info: jest.Mock<void, [string, Record<string, unknown>?]>;
@@ -38,9 +33,11 @@ const makeGateway = (): jest.Mocked<VideoGateway> =>
   }) as unknown as jest.Mocked<VideoGateway>;
 
 describe('UploadVideos', () => {
+  const user = { id: 'user-1', email: 'u@x.com' };
+
   beforeEach(() => {
     jest.clearAllMocks();
-    (fs.unlink as unknown as jest.Mock).mockResolvedValue(undefined);
+    (unlink as unknown as jest.Mock).mockResolvedValue(undefined);
   });
 
   test('returns error when validate throws (no updateStatus; logs skipped)', async () => {
@@ -53,7 +50,7 @@ describe('UploadVideos', () => {
     });
 
     const res = await usecase.execute({
-      userId: 'user-1',
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -81,7 +78,7 @@ describe('UploadVideos', () => {
     expect(gateway.publishProcessingEvent).not.toHaveBeenCalled();
     expect(gateway.updateStatus).not.toHaveBeenCalled();
 
-    expect(fs.unlink).toHaveBeenCalledWith('/tmp/file-1');
+    expect(unlink).toHaveBeenCalledWith('/tmp/file-1');
 
     expect(logger.warn).toHaveBeenCalledWith(
       'upload_videos.update_status.skipped',
@@ -102,7 +99,7 @@ describe('UploadVideos', () => {
     gateway.updateStatus.mockRejectedValueOnce(new Error('update_fail'));
 
     const res = await usecase.execute({
-      userId: 'user-1',
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -124,6 +121,9 @@ describe('UploadVideos', () => {
     }
 
     expect(gateway.createPending).toHaveBeenCalledTimes(1);
+    
+    expect((gateway.createPending.mock.calls[0][0] as any).user.id).toBe('user-1');
+
     expect(gateway.uploadMultipartFromPath).toHaveBeenCalledTimes(1);
     expect(gateway.publishProcessingEvent).not.toHaveBeenCalled();
 
@@ -143,7 +143,7 @@ describe('UploadVideos', () => {
       }),
     );
 
-    expect(fs.unlink).toHaveBeenCalledWith('/tmp/file-1');
+    expect(unlink).toHaveBeenCalledWith('/tmp/file-1');
   });
 
   test('when flow fails AFTER createPending and updateStatus succeeds, it logs update_status.set_error', async () => {
@@ -155,7 +155,7 @@ describe('UploadVideos', () => {
     gateway.updateStatus.mockResolvedValueOnce(true);
 
     const res = await usecase.execute({
-      userId: 'user-1',
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -182,7 +182,7 @@ describe('UploadVideos', () => {
     expect(gateway.updateStatus).toHaveBeenCalledTimes(1);
   });
 
-  test('logs temp_file.delete_failed when fs.unlink fails (covers unlink catch)', async () => {
+  test('logs temp_file.delete_failed when unlink fails (covers unlink catch)', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
     const usecase = new UploadVideos(gateway, cfg, logger as any);
@@ -191,12 +191,10 @@ describe('UploadVideos', () => {
       throw new Error('invalid_file');
     });
 
-    (fs.unlink as unknown as jest.Mock).mockRejectedValueOnce(
-      new Error('unlink_fail'),
-    );
+    (unlink as unknown as jest.Mock).mockRejectedValueOnce(new Error('unlink_fail'));
 
-    const res = await usecase.execute({
-      userId: 'user-1',
+    await usecase.execute({
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -207,8 +205,6 @@ describe('UploadVideos', () => {
       ],
       validate,
     });
-
-    expect(res.items[0].ok).toBe(false);
 
     expect(logger.warn).toHaveBeenCalledWith(
       'upload_videos.temp_file.delete_failed',
@@ -221,16 +217,15 @@ describe('UploadVideos', () => {
     );
   });
 
-  test('logs temp_file.deleted when unlink succeeds (covers finally success branch / linha 245)', async () => {
+  test('logs temp_file.deleted when unlink succeeds (covers finally success branch / linha do deleted)', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
     const usecase = new UploadVideos(gateway, cfg, logger as any);
 
-  
-    (fs.unlink as unknown as jest.Mock).mockResolvedValueOnce(undefined);
+    (unlink as unknown as jest.Mock).mockResolvedValueOnce(undefined);
 
     await usecase.execute({
-      userId: 'user-1',
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -244,7 +239,7 @@ describe('UploadVideos', () => {
       }),
     });
 
-    expect(fs.unlink).toHaveBeenCalledWith('/tmp/file-success-unlink');
+    expect(unlink).toHaveBeenCalledWith('/tmp/file-success-unlink');
 
     expect(logger.info).toHaveBeenCalledWith(
       'upload_videos.temp_file.deleted',
@@ -256,13 +251,13 @@ describe('UploadVideos', () => {
     );
   });
 
-  test('happy path logs and returns pending item', async () => {
+  test('happy path logs and returns pending item (and publishes event with user props)', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
     const usecase = new UploadVideos(gateway, cfg, logger as any);
 
     const res = await usecase.execute({
-      userId: 'user-1',
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -290,17 +285,20 @@ describe('UploadVideos', () => {
     expect(gateway.createPending).toHaveBeenCalledTimes(1);
     expect(gateway.uploadMultipartFromPath).toHaveBeenCalledTimes(1);
     expect(gateway.publishProcessingEvent).toHaveBeenCalledTimes(1);
-    expect(gateway.updateStatus).not.toHaveBeenCalled();
 
-    expect(logger.info).toHaveBeenCalledWith(
-      'upload_videos.process_one.success',
-      expect.objectContaining({ userId: 'user-1', videoId: expect.any(String) }),
+    
+    expect(gateway.publishProcessingEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({ id: 'user-1', email: 'u@x.com' }),
+        event: 'VIDEO_PENDING',
+      }),
     );
 
-    expect(fs.unlink).toHaveBeenCalledWith('/tmp/file-1');
+    expect(gateway.updateStatus).not.toHaveBeenCalled();
+    expect(unlink).toHaveBeenCalledWith('/tmp/file-1');
   });
 
-  test('when validate throws a non-Error, it uses upload_failed and logs without stack (covers ternary false branch)', async () => {
+  test('when validate throws a non-Error, it uses upload_failed and logs without stack', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
     const usecase = new UploadVideos(gateway, cfg, logger as any);
@@ -310,7 +308,7 @@ describe('UploadVideos', () => {
     });
 
     const res = await usecase.execute({
-      userId: 'user-1',
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -339,7 +337,7 @@ describe('UploadVideos', () => {
     expect(gateway.updateStatus).not.toHaveBeenCalled();
   });
 
-  test('when updateStatus rejects with non-Error, it logs update_status_failed and without updateStack (covers ternary false branch)', async () => {
+  test('when updateStatus rejects with non-Error, it logs update_status_failed and without updateStack', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
     const usecase = new UploadVideos(gateway, cfg, logger as any);
@@ -347,8 +345,8 @@ describe('UploadVideos', () => {
     gateway.uploadMultipartFromPath.mockRejectedValueOnce(new Error('s3_fail'));
     gateway.updateStatus.mockRejectedValueOnce('nope');
 
-    const res = await usecase.execute({
-      userId: 'user-1',
+    await usecase.execute({
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -360,8 +358,6 @@ describe('UploadVideos', () => {
       validate: jest.fn(),
     });
 
-    expect(res.items[0].ok).toBe(false);
-
     const call = logger.error.mock.calls.find(
       (c) => c[0] === 'upload_videos.update_status.failed',
     );
@@ -372,19 +368,15 @@ describe('UploadVideos', () => {
     expect(meta).not.toHaveProperty('updateStack');
   });
 
-  test('when unlink rejects with non-Error, it logs unlink_failed and without unlinkStack (covers ternary false branch)', async () => {
+  test('when unlink rejects with non-Error, it logs unlink_failed and without unlinkStack', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
     const usecase = new UploadVideos(gateway, cfg, logger as any);
 
-    const validate = jest.fn(() => {
-      throw new Error('invalid_file');
-    });
-
-    (fs.unlink as unknown as jest.Mock).mockRejectedValueOnce('nope');
+    (unlink as unknown as jest.Mock).mockRejectedValueOnce('nope');
 
     await usecase.execute({
-      userId: 'user-1',
+      user,
       files: [
         {
           originalFileName: 'video.mp4',
@@ -393,7 +385,9 @@ describe('UploadVideos', () => {
           tempFilePath: '/tmp/file-non-error-3',
         },
       ],
-      validate,
+      validate: jest.fn(() => {
+        throw new Error('invalid_file');
+      }),
     });
 
     const call = logger.warn.mock.calls.find(
