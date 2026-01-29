@@ -3,10 +3,18 @@ import type { VideoDataSource } from 'src/interfaces/video-data-source';
 import type { VideoGateway } from '../../application/gateways/video-gateway';
 import type { UserContextProps } from '../../domain/value-objects/user-context';
 
-jest.mock('../../application/usecases/upload-videos', () => ({ UploadVideos: jest.fn() }));
-jest.mock('../../application/usecases/list-user-videos', () => ({ ListUserVideos: jest.fn() }));
-jest.mock('../../application/usecases/get-processed-video', () => ({ GetProcessedVideo: jest.fn() }));
-jest.mock('../../application/usecases/update-video-status', () => ({ UpdateVideoStatus: jest.fn() }));
+jest.mock('../../application/usecases/upload-videos', () => ({
+  UploadVideos: jest.fn(),
+}));
+jest.mock('../../application/usecases/list-user-videos', () => ({
+  ListUserVideos: jest.fn(),
+}));
+jest.mock('../../application/usecases/get-processed-video', () => ({
+  GetProcessedVideo: jest.fn(),
+}));
+jest.mock('../../application/usecases/update-video-status', () => ({
+  UpdateVideoStatus: jest.fn(),
+}));
 
 jest.mock('../presenters/upload-videos.presenter', () => ({
   UploadVideosPresenter: { toJSON: jest.fn() },
@@ -62,9 +70,13 @@ describe('VideoController', () => {
   const GetProcessedVideoCtor = GetProcessedVideo as unknown as CtorMock;
   const UpdateVideoStatusCtor = UpdateVideoStatus as unknown as CtorMock;
 
-  const uploadPresenter = UploadVideosPresenter as unknown as { toJSON: jest.Mock };
+  const uploadPresenter = UploadVideosPresenter as unknown as {
+    toJSON: jest.Mock;
+  };
   const listPresenter = ListVideosPresenter as unknown as { toJSON: jest.Mock };
-  const downloadPresenter = DownloadProcessedZipPresenter as unknown as { toJSON: jest.Mock };
+  const downloadPresenter = DownloadProcessedZipPresenter as unknown as {
+    toJSON: jest.Mock;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -77,12 +89,24 @@ describe('VideoController', () => {
 
     const ds: VideoDataSource = {
       gateway,
-      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket', maxVideoBytes: 104857600 },
+      config: {
+        inputBucket: 'in-bucket',
+        outputBucket: 'out-bucket',
+        maxVideoBytes: 104857600,
+      },
       logger: logger as never,
     };
 
     const executeMock = jest.fn().mockResolvedValue({
-      items: [{ ok: true, videoId: 'v1', inputKey: 'k', outputZipKey: 'z', status: 'PENDING' }],
+      items: [
+        {
+          ok: true,
+          videoId: 'v1',
+          inputKey: 'k',
+          outputZipKey: 'z',
+          status: 'PENDING',
+        },
+      ],
     });
 
     UploadVideosCtor.mockImplementation(() => ({ execute: executeMock }));
@@ -135,11 +159,17 @@ describe('VideoController', () => {
 
     const ds: VideoDataSource = {
       gateway,
-      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket', maxVideoBytes: 104857600 },
+      config: {
+        inputBucket: 'in-bucket',
+        outputBucket: 'out-bucket',
+        maxVideoBytes: 104857600,
+      },
       logger: logger as never,
     };
 
-    const executeMock = jest.fn().mockResolvedValue({ videos: [{ videoId: 'v1' }] });
+    const executeMock = jest
+      .fn()
+      .mockResolvedValue({ videos: [{ videoId: 'v1' }] });
 
     ListUserVideosCtor.mockImplementation(() => ({ execute: executeMock }));
     listPresenter.toJSON.mockReturnValue({ videos: [{ videoId: 'v1' }] });
@@ -163,7 +193,11 @@ describe('VideoController', () => {
 
     const ds: VideoDataSource = {
       gateway,
-      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket', maxVideoBytes: 104857600 },
+      config: {
+        inputBucket: 'in-bucket',
+        outputBucket: 'out-bucket',
+        maxVideoBytes: 104857600,
+      },
       logger: logger as never,
     };
 
@@ -180,8 +214,11 @@ describe('VideoController', () => {
 
     const res = await controller.downloadProcessedZip(user, 'v1');
 
-    expect(GetProcessedVideoCtor).toHaveBeenCalledWith(gateway, 'out-bucket', ds.logger);
-
+    expect(GetProcessedVideoCtor).toHaveBeenCalledWith(
+      gateway,
+      'out-bucket',
+      ds.logger,
+    );
 
     expect(executeMock).toHaveBeenCalledWith({ user, videoId: 'v1' });
 
@@ -195,7 +232,11 @@ describe('VideoController', () => {
 
     const ds: VideoDataSource = {
       gateway,
-      config: { inputBucket: 'in-bucket', outputBucket: 'out-bucket', maxVideoBytes: 104857600 },
+      config: {
+        inputBucket: 'in-bucket',
+        outputBucket: 'out-bucket',
+        maxVideoBytes: 104857600,
+      },
       logger: logger as never,
     };
 
@@ -204,10 +245,16 @@ describe('VideoController', () => {
 
     const controller = new VideoController(ds);
 
-    const res = await controller.updateStatusFromEvent({ videoId: 'v1', status: 'SUCCEEDED' });
+    const res = await controller.updateStatusFromEvent({
+      videoId: 'v1',
+      status: 'SUCCEEDED',
+    });
 
     expect(UpdateVideoStatusCtor).toHaveBeenCalledWith(gateway, ds.logger);
-    expect(executeMock).toHaveBeenCalledWith({ videoId: 'v1', status: 'SUCCEEDED' });
+    expect(executeMock).toHaveBeenCalledWith({
+      videoId: 'v1',
+      status: 'SUCCEEDED',
+    });
     expect(res).toEqual({ ok: true });
   });
 });

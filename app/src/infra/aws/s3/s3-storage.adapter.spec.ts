@@ -7,7 +7,9 @@ jest.mock('@aws-sdk/client-s3', () => {
   return {
     ...original,
     S3Client: jest.fn(),
-    GetObjectCommand: jest.fn().mockImplementation((args) => ({ __type: 'GetObjectCommand', args })),
+    GetObjectCommand: jest
+      .fn()
+      .mockImplementation((args) => ({ __type: 'GetObjectCommand', args })),
   };
 });
 
@@ -16,7 +18,9 @@ jest.mock('@aws-sdk/s3-request-presigner', () => ({
 }));
 
 jest.mock('@aws-sdk/lib-storage', () => ({
-  Upload: jest.fn().mockImplementation(() => ({ done: jest.fn().mockResolvedValue(undefined) })),
+  Upload: jest.fn().mockImplementation(() => ({
+    done: jest.fn().mockResolvedValue(undefined),
+  })),
 }));
 
 jest.mock('fs', () => ({
@@ -29,11 +33,13 @@ import fs from 'fs';
 
 describe('S3StorageAdapter', () => {
   const makeConfig = (vals: Record<string, any>) =>
-    ({ get: (k: string) => vals[k] } as unknown as ConfigService);
+    ({ get: (k: string) => vals[k] }) as unknown as ConfigService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (S3Client as unknown as jest.Mock).mockImplementation(() => ({ __client: true }));
+    (S3Client as unknown as jest.Mock).mockImplementation(() => ({
+      __client: true,
+    }));
   });
 
   it('constructor: usa defaults e forcePathStyle=false quando sem endpoint', () => {
@@ -47,7 +53,12 @@ describe('S3StorageAdapter', () => {
   });
 
   it('constructor: forcePathStyle=true quando endpoint existe', () => {
-    new S3StorageAdapter(makeConfig({ AWS_ENDPOINT_URL: 'http://localhost:4566', AWS_REGION: 'sa-east-1' }));
+    new S3StorageAdapter(
+      makeConfig({
+        AWS_ENDPOINT_URL: 'http://localhost:4566',
+        AWS_REGION: 'sa-east-1',
+      }),
+    );
 
     expect(S3Client).toHaveBeenCalledWith({
       region: 'sa-east-1',
@@ -60,11 +71,15 @@ describe('S3StorageAdapter', () => {
     (getSignedUrl as jest.Mock).mockResolvedValue('SIGNED');
 
     const adapter = new S3StorageAdapter(makeConfig({}));
-    const url = await adapter.presignGetObject({ bucket: 'b', key: 'k', expiresInSeconds: 60 });
+    const url = await adapter.presignGetObject({
+      bucket: 'b',
+      key: 'k',
+      expiresInSeconds: 60,
+    });
 
     expect(GetObjectCommand).toHaveBeenCalledWith({ Bucket: 'b', Key: 'k' });
     expect(getSignedUrl).toHaveBeenCalledWith(
-      expect.anything(), 
+      expect.anything(),
       expect.objectContaining({ __type: 'GetObjectCommand' }),
       { expiresIn: 60 },
     );

@@ -1,4 +1,3 @@
-
 import { VideoGatewayImpl } from './video-gateway-impl';
 import type { VideoMetadata } from 'src/contexts/video/domain/video-metadata';
 import { UserContext } from 'src/contexts/video/domain/value-objects/user-context';
@@ -71,7 +70,11 @@ describe('VideoGatewayImpl', () => {
     await gtw.findById('v1');
     expect(repo.findById).toHaveBeenCalledWith('v1');
 
-    await gtw.updateStatus({ videoId: 'v1', status: 'ERROR', errorMessage: 'x' });
+    await gtw.updateStatus({
+      videoId: 'v1',
+      status: 'ERROR',
+      errorMessage: 'x',
+    });
     expect(repo.updateStatus).toHaveBeenCalledWith({
       videoId: 'v1',
       status: 'ERROR',
@@ -145,7 +148,7 @@ describe('VideoGatewayImpl', () => {
 
     const payload = {
       videoId: 'v1',
-      user: { id: 'u1', email: 'u@x.com' }, 
+      user: { id: 'u1', email: 'u@x.com' },
       inputBucket: 'in',
       inputKey: 'k',
       outputBucket: 'out',

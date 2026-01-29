@@ -2,59 +2,28 @@ name: CI
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: ['**']
   pull_request:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 jobs:
-  ci:
-    runs-on: ubuntu-latest
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      app_dir: app
+      node_version: 22
 
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [20.x]
+  lint:
+    uses: ./.github/workflows/lint.yml
+    with:
+      app_dir: app
+      node_version: 22
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Typecheck
-        run: npx tsc -p tsconfig.json --noEmit
-
-      - name: Format check
-        run: npx prettier --check "src/**/*.ts" "test/**/*.ts"
-
-      - name: Lint
-        run: npx eslint "{src,apps,libs,test}/**/*.ts"
-
-      - name: Unit tests (coverage)
-        run: npm run test:cov
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload coverage artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-unit
-          path: |
-            coverage/
-            coverage/**/*
-          if-no-files-found: ignore
+  tests:
+    uses: ./.github/workflows/test.yml
+    with:
+      app_dir: app
+      node_version: 22

@@ -43,7 +43,8 @@ describe('VideosHttpController (100% coverage)', () => {
       process.env.MAX_FILES_PER_REQUEST = env.MAX_FILES_PER_REQUEST;
     else delete process.env.MAX_FILES_PER_REQUEST;
 
-    if (env?.MAX_VIDEO_BYTES !== undefined) process.env.MAX_VIDEO_BYTES = env.MAX_VIDEO_BYTES;
+    if (env?.MAX_VIDEO_BYTES !== undefined)
+      process.env.MAX_VIDEO_BYTES = env.MAX_VIDEO_BYTES;
     else delete process.env.MAX_VIDEO_BYTES;
 
     capturedFilesInterceptorOpts = undefined;
@@ -71,20 +72,25 @@ describe('VideosHttpController (100% coverage)', () => {
       },
     }));
 
-    jest.doMock('src/contexts/video/adapters/controllers/video-controller', () => ({
-      VideoController: jest.fn().mockImplementation(() => ({
-        upload: uploadMock,
-        list: listMock,
-        downloadProcessedZip: downloadZipMock,
-      })),
-    }));
+    jest.doMock(
+      'src/contexts/video/adapters/controllers/video-controller',
+      () => ({
+        VideoController: jest.fn().mockImplementation(() => ({
+          upload: uploadMock,
+          list: listMock,
+          downloadProcessedZip: downloadZipMock,
+        })),
+      }),
+    );
 
     let VideosHttpController: any;
     let AppError: any;
 
     jest.isolateModules(() => {
-      VideosHttpController = require('./videos-http.controller').VideosHttpController;
-      AppError = require('src/contexts/video/application/errors/app-error').AppError;
+      VideosHttpController =
+        require('./videos-http.controller').VideosHttpController;
+      AppError =
+        require('src/contexts/video/application/errors/app-error').AppError;
     });
 
     return { VideosHttpController, AppError };
@@ -106,7 +112,9 @@ describe('VideosHttpController (100% coverage)', () => {
       destination({}, {}, cb);
 
       expect(existsSyncMock).toHaveBeenCalledWith('/tmp/uploads');
-      expect(mkdirSyncMock).toHaveBeenCalledWith('/tmp/uploads', { recursive: true });
+      expect(mkdirSyncMock).toHaveBeenCalledWith('/tmp/uploads', {
+        recursive: true,
+      });
       expect(cb).toHaveBeenCalledWith(null, '/tmp/uploads');
     });
 
@@ -170,8 +178,10 @@ describe('VideosHttpController (100% coverage)', () => {
       const { VideosHttpController } = bootWithEnv();
       const controller = new VideosHttpController(makeDs(100));
 
-      await expect(controller.list(makeReq({ 'x-user-email': 'u1@mail.com' }))).rejects.toMatchObject({
-        status: 400
+      await expect(
+        controller.list(makeReq({ 'x-user-email': 'u1@mail.com' })),
+      ).rejects.toMatchObject({
+        status: 400,
       });
 
       expect(listMock).not.toHaveBeenCalled();
@@ -182,10 +192,14 @@ describe('VideosHttpController (100% coverage)', () => {
       const controller = new VideosHttpController(makeDs(100));
 
       await expect(
-        controller.upload(
-          makeReq({ 'x-user-email': 'u1@mail.com' }),
-          [makeFile({ originalname: 'a.mp4', mimetype: 'video/mp4', size: 10, path: '/tmp/a' })],
-        ),
+        controller.upload(makeReq({ 'x-user-email': 'u1@mail.com' }), [
+          makeFile({
+            originalname: 'a.mp4',
+            mimetype: 'video/mp4',
+            size: 10,
+            path: '/tmp/a',
+          }),
+        ]),
       ).rejects.toMatchObject({ status: 400 });
 
       expect(uploadMock).not.toHaveBeenCalled();
@@ -219,12 +233,12 @@ describe('VideosHttpController (100% coverage)', () => {
 
       const res = await controller.upload(
         makeReq({
-          'content-type': 'multipart/form-data', 
-          'x-user-empty': '', 
-          'x-user-': 'x', 
+          'content-type': 'multipart/form-data',
+          'x-user-empty': '',
+          'x-user-': 'x',
           'x-user-id': 'u1',
           'x-user-email': 'u1@mail.com',
-          'x-user-is-admin': 'true', 
+          'x-user-is-admin': 'true',
         }),
         files,
       );
@@ -242,7 +256,6 @@ describe('VideosHttpController (100% coverage)', () => {
         }),
       );
 
-      
       expect((userArg as any)['']).toBe('x');
 
       expect(mappedArg).toEqual([
@@ -254,25 +267,44 @@ describe('VideosHttpController (100% coverage)', () => {
         },
       ]);
 
-      
       expect(() =>
-        validator({ originalFileName: 'x.exe', contentType: 'video/mp4', size: 10 }),
+        validator({
+          originalFileName: 'x.exe',
+          contentType: 'video/mp4',
+          size: 10,
+        }),
       ).toThrow(AppError);
 
       expect(() =>
-        validator({ originalFileName: 'x.mp4', contentType: 'application/json', size: 10 }),
+        validator({
+          originalFileName: 'x.mp4',
+          contentType: 'application/json',
+          size: 10,
+        }),
       ).toThrow(AppError);
 
       expect(() =>
-        validator({ originalFileName: 'x.mp4', contentType: 'video/mp4', size: 0 }),
+        validator({
+          originalFileName: 'x.mp4',
+          contentType: 'video/mp4',
+          size: 0,
+        }),
       ).toThrow(AppError);
 
       expect(() =>
-        validator({ originalFileName: 'x.mp4', contentType: 'video/mp4', size: 101 }),
+        validator({
+          originalFileName: 'x.mp4',
+          contentType: 'video/mp4',
+          size: 101,
+        }),
       ).toThrow(AppError);
 
       expect(() =>
-        validator({ originalFileName: 'ok.mp4', contentType: 'video/mp4', size: 10 }),
+        validator({
+          originalFileName: 'ok.mp4',
+          contentType: 'video/mp4',
+          size: 10,
+        }),
       ).not.toThrow();
     });
 

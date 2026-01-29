@@ -40,7 +40,11 @@ describe('UpdateVideoStatus', () => {
 
     expect(logger.info).toHaveBeenCalledWith(
       'update_video_status.start',
-      expect.objectContaining({ videoId: 'v1', status: 'SUCCEEDED', hasErrorMessage: false }),
+      expect.objectContaining({
+        videoId: 'v1',
+        status: 'SUCCEEDED',
+        hasErrorMessage: false,
+      }),
     );
 
     expect(logger.info).toHaveBeenCalledWith(

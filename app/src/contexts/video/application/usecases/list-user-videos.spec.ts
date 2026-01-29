@@ -29,9 +29,10 @@ describe('ListUserVideos', () => {
     const gateway = makeGateway();
     const logger = makeLogger();
 
-    gateway.listByUserId.mockResolvedValueOnce(
-      [{ id: 'v1' }, { id: 'v2' }] as any,
-    );
+    gateway.listByUserId.mockResolvedValueOnce([
+      { id: 'v1' },
+      { id: 'v2' },
+    ] as any);
 
     const usecase = new ListUserVideos(gateway as any, logger as any);
 

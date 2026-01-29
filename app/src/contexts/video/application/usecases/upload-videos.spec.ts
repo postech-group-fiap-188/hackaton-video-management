@@ -1,4 +1,3 @@
-
 import { unlink } from 'fs/promises';
 import { UploadVideos } from './upload-videos';
 import type { VideoGateway } from '../gateways/video-gateway';
@@ -121,8 +120,10 @@ describe('UploadVideos', () => {
     }
 
     expect(gateway.createPending).toHaveBeenCalledTimes(1);
-    
-    expect((gateway.createPending.mock.calls[0][0] as any).user.id).toBe('user-1');
+
+    expect((gateway.createPending.mock.calls[0][0] as any).user.id).toBe(
+      'user-1',
+    );
 
     expect(gateway.uploadMultipartFromPath).toHaveBeenCalledTimes(1);
     expect(gateway.publishProcessingEvent).not.toHaveBeenCalled();
@@ -191,7 +192,9 @@ describe('UploadVideos', () => {
       throw new Error('invalid_file');
     });
 
-    (unlink as unknown as jest.Mock).mockRejectedValueOnce(new Error('unlink_fail'));
+    (unlink as unknown as jest.Mock).mockRejectedValueOnce(
+      new Error('unlink_fail'),
+    );
 
     await usecase.execute({
       user,
@@ -286,7 +289,6 @@ describe('UploadVideos', () => {
     expect(gateway.uploadMultipartFromPath).toHaveBeenCalledTimes(1);
     expect(gateway.publishProcessingEvent).toHaveBeenCalledTimes(1);
 
-    
     expect(gateway.publishProcessingEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         user: expect.objectContaining({ id: 'user-1', email: 'u@x.com' }),

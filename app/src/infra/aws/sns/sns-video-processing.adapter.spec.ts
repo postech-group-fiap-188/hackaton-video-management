@@ -27,7 +27,7 @@ function makeUserContext(id = 'u', email = 'u@mail.com') {
 
 describe('SnsVideoProcessingAdapter', () => {
   const makeConfig = (vals: Record<string, unknown>) =>
-    ({ get: (k: string) => vals[k] } as unknown as ConfigService);
+    ({ get: (k: string) => vals[k] }) as unknown as ConfigService;
 
   beforeEach(() => {
     jest.clearAllMocks();

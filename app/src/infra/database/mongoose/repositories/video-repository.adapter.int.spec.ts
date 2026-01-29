@@ -1,4 +1,3 @@
-
 import { MongooseVideoRepositoryAdapter } from './video-repository.adapter';
 import type { Model } from 'mongoose';
 import { UserContext } from 'src/contexts/video/domain/value-objects/user-context';
