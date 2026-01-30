@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: ["**"]
   pull_request:
 
 concurrency:
@@ -27,3 +27,12 @@ jobs:
     with:
       app_dir: app
       node_version: 22
+
+  sonarqube:
+    needs: tests
+    uses: ./.github/workflows/sonarqube.yml
+    with:
+      app_dir: app
+      node_version: 22
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
