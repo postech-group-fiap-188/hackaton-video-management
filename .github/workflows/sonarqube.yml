@@ -30,7 +30,9 @@ jobs:
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         with:
+          projectBaseDir: ${{ inputs.app_dir }} 
           args: >
             -Dsonar.qualitygate.wait=true
+            -Dsonar.verbose=true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
