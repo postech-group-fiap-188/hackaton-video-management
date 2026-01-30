@@ -1,0 +1,121 @@
+name: CD
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY: hackaton-video-management
+  IMAGE_TAG: ${{ github.sha }}
+  CLUSTER_NAME: hackaton-video-management-cluster
+  NAMESPACE: hackaton-video-management
+
+jobs:
+  build:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.build.outputs.image-tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker image
+        id: build
+        run: |
+          docker build -t ${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
+          docker tag ${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          docker tag ${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+          echo "image-tag=${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+
+      - name: Push image
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.12.0"
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install hackaton-video-management ./k8s \
+            --namespace ${{ env.NAMESPACE }} \
+            -- create-namespace \
+            --atomic \
+            --set image.repository=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} \
+            --set image.tag=${{ needs.build.outputs.image-tag }} \
+            --set image.pullPolicy=Always \
+            --set config.port="${{ secrets.APP_PORT }}" \
+            --set config.nodeEnv="${{ secrets.NODE_ENV }}" \
+            --set config.awsRegion="${{ env.AWS_REGION }}" \
+            --set-string config.mongoDbCollection="${{ env.MONGO_DB_COLLECTION }}" \
+            --set-string config.s3InputBucketName="${{ env.S3_INPUT_BUCKET_NAME }}" \
+            --set-string config.s3OutputBucketName="${{ env.S3_OUTPUT_BUCKET_NAME }}" \
+            --set-string config.snsProcessingTopicArn="${{ env.SNS_PROCESSING_TOPIC_ARN }}" \
+            --set-string config.sqsStatusQueueUrl="${{ env.SQS_STATUS_QUEUE_URL }}" \
+            --set-string config.maxVideoBytes="${{ env.MAX_VIDEO_BYTES }}" \
+            --set secrets.awsAccessKeyId="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            --set secrets.awsSecretAccessKey="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            --set secrets.awsSessionToken="${{ secrets.AWS_SESSION_TOKEN }}" \
+            --set-string secrets.mongoDbUrl="${{ secrets.MONGO_DB_URL }}" \
+            --wait \
+            --timeout=10m
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Checking deployment status..."
+          kubectl get pods -n ${{ env.NAMESPACE }}
+          kubectl get services -n ${{ env.NAMESPACE }}
+
+      - name: Output deployment details
+        run: |
+          echo "✅ Application deployed successfully!"
+          echo "📦 Image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ needs.build.outputs.image-tag }}"
+          echo "🏗️ Cluster: ${{ env.CLUSTER_NAME }}"
+          echo "📁 Namespace: ${{ env.NAMESPACE }}"
+          echo "🔗 Helm Release: hackaton-video-management"

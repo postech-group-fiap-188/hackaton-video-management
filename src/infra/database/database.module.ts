@@ -11,7 +11,7 @@ import { MongooseVideoRepositoryAdapter } from './mongoose/repositories/video-re
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const uri = config.get<string>('MONGO_URI');
-        const dbName = config.get<string>('MONGO_DB');
+        const dbName = config.get<string>('MONGO_DB_COLLECTION');
         if (!uri || !dbName) throw new Error('Missing Mongo env vars');
         return { uri, dbName };
       },
