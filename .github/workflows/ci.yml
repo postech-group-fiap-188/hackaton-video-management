@@ -24,6 +24,7 @@ jobs:
       node_version: 22
 
   tests:
+    needs: build
     uses: ./.github/workflows/test.yml
     with:
       app_dir: app
