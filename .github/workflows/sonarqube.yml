@@ -1,13 +1,6 @@
 name: SonarQube Quality Gate
 on:
   workflow_call:
-    inputs:
-      app_dir:
-        required: true
-        type: string
-      node_version:
-        required: true
-        type: number
     secrets:
       SONAR_TOKEN:
         required: true
@@ -30,7 +23,6 @@ jobs:
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         with:
-          projectBaseDir: ${{ inputs.app_dir }} 
           args: >
             -Dsonar.qualitygate.wait=true
             -Dsonar.verbose=true
