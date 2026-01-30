@@ -3,9 +3,6 @@ kind: Ingress
 metadata:
   name: hackaton-video-management
   annotations:
-    # Example for nginx ingress:
-    # nginx.ingress.kubernetes.io/rewrite-target: /
-    # nginx.ingress.kubernetes.io/proxy-body-size: "2048m"
     kubernetes.io/ingress.class: nginx
 spec:
   rules:

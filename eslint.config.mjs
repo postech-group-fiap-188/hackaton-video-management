@@ -41,7 +41,6 @@ export default tseslint.config(
     },
   },
 
-  // ✅ Typed lint APENAS em src e IGNORANDO testes
   ...tseslint.configs.recommendedTypeChecked.map((cfg) => ({
     ...cfg,
     files: ['src/**/*.ts'],
@@ -55,8 +54,6 @@ export default tseslint.config(
       },
     },
   })),
-
-  // ✅ Regras typed extras (só src, ignorando testes)
   {
     files: ['src/**/*.ts'],
     ignores: TEST_GLOBS,
@@ -76,7 +73,6 @@ export default tseslint.config(
     },
   },
 
-  // ✅ Testes SEM type info (mesmo que estejam em src/)
   {
     files: TEST_GLOBS,
     plugins: {
@@ -87,7 +83,6 @@ export default tseslint.config(
       parserOptions: { project: null },
     },
     rules: {
-      // se algum typed rule vazar por algum motivo, aqui corta:
       '@typescript-eslint/no-array-delete': 'off',
       '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',

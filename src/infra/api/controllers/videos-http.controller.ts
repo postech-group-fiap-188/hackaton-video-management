@@ -35,6 +35,8 @@ import { UploadVideosResponseDto } from '../dtos/upload-videos-response.dto';
 import { GetProcessedZipResponseDto } from '../dtos/get-processed-zip-response.dto';
 import { ListAllVideosResponseDto } from '../dtos/list-videos-response.dto';
 
+type ParsedUserContextProps = Omit<UserContextProps, 'id'> & { id?: string };
+
 @ApiTags('videos')
 @ApiSecurity('x-user-id')
 @ApiSecurity('x-user-email')
@@ -128,47 +130,65 @@ export class VideosHttpController {
 
 function getUserPropsFromHeaders(req: Request): UserContextProps {
   const headers = req.headers as Record<string, unknown>;
-  const props = parseXUserHeaders(headers);
+  const parsed = parseXUserHeaders(headers);
 
-  const id = props.id;
+  const id = (parsed.id ?? '').trim();
   if (!id) throw new BadRequestException('Missing user');
 
-  return props;
+  return {
+    id,
+    email: parsed.email,
+    attributes: parsed.attributes,
+  };
+}
+
+function getHeaderString(
+  headers: Record<string, unknown>,
+  name: string,
+): string | undefined {
+  const v = headers[name];
+  if (typeof v === 'string') return v.trim() || undefined;
+  if (Array.isArray(v) && typeof v[0] === 'string')
+    return v[0].trim() || undefined;
+  return undefined;
 }
 
 function parseXUserHeaders(
   headers: Record<string, unknown>,
-): UserContextProps {
-  const raw: Record<string, string> = {};
+): ParsedUserContextProps {
+  const lower: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(headers)) lower[k.toLowerCase()] = v;
 
-  for (const [k, v] of Object.entries(headers)) {
-    const key = k.toLowerCase();
-    if (!key.startsWith('x-user-')) continue;
+  const id = getHeaderString(lower, 'x-user-id');
+  const email = getHeaderString(lower, 'x-user-email');
 
-    const suffix = key.slice('x-user-'.length);
-    const propKey = toCamelCase(suffix);
+  const attributes: Record<string, string> = {};
 
-    if (typeof v === 'string') raw[propKey] = v;
-    else if (Array.isArray(v) && typeof v[0] === 'string') raw[propKey] = v[0];
+  for (const [k, v] of Object.entries(lower)) {
+    if (!k.startsWith('x-user-')) continue;
+
+    const suffix = k.slice('x-user-'.length).trim();
+    if (!suffix) continue;
+    if (suffix === 'id' || suffix === 'email') continue;
+
+    const value =
+      typeof v === 'string'
+        ? v
+        : Array.isArray(v) && typeof v[0] === 'string'
+          ? v[0]
+          : undefined;
+
+    const cleaned = (value ?? '').trim();
+    if (!cleaned) continue;
+
+    attributes[suffix] = cleaned;
   }
-
-  const { id, email, ...rest } = raw;
 
   return {
     id,
     email,
-    attributes: rest,
+    attributes: Object.keys(attributes).length ? attributes : undefined,
   };
-}
-
-function toCamelCase(input: string): string {
-  const parts = input.split('-').filter(Boolean);
-  if (parts.length === 0) return input;
-
-  const [first, ...rest] = parts;
-  return (
-    first + rest.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join('')
-  );
 }
 
 function validateVideo(
@@ -190,9 +210,7 @@ function validateVideo(
       'INVALID_VIDEO_EXTENSION',
       'INVALID_VIDEO_EXTENSION',
       400,
-      {
-        ext,
-      },
+      { ext },
     );
 
   if (!allowedMime.has(meta.contentType))
@@ -200,9 +218,7 @@ function validateVideo(
       'INVALID_VIDEO_MIMETYPE',
       'INVALID_VIDEO_MIMETYPE',
       400,
-      {
-        mimetype: meta.contentType,
-      },
+      { mimetype: meta.contentType },
     );
 
   if (meta.size <= 0)

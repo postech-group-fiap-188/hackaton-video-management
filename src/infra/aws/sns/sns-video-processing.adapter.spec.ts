@@ -10,10 +10,7 @@ jest.mock('@aws-sdk/client-sns', () => ({
   })),
 }));
 
-/**
- * Helper que cria um objeto compatível com seu UserContext
- * (pelo erro, ele precisa ter: props, sub, raw)
- */
+
 function makeUserContext(id = 'u', email = 'u@mail.com') {
   return {
     props: { id, email },

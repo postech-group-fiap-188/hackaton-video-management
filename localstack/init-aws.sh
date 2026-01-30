@@ -3,7 +3,6 @@ set -Eeuo pipefail
 
 log() { echo "[localstack:init] $*"; }
 
-# Se der erro, imprime linha/comando antes de sair
 trap 'log "ERROR at line $LINENO: $BASH_COMMAND"' ERR
 
 log "bootstrapping resources..."

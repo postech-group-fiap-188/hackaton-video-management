@@ -1,4 +1,3 @@
-// src/video/adapters/http/dtos/get-processed-zip-response.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 
 export class GetProcessedZipResponseDto {

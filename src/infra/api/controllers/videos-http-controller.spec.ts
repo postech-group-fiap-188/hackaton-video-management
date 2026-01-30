@@ -50,6 +50,30 @@ describe('VideosHttpController (100% coverage)', () => {
     capturedFilesInterceptorOpts = undefined;
     capturedMaxFiles = undefined;
 
+    // ✅ evita Jest carregar/avaliar DTOs reais (Swagger/reflect etc.)
+    jest.doMock('../dtos/upload-videos-response.dto', () => ({
+      __esModule: true,
+      UploadVideosResponseDto: class UploadVideosResponseDto {},
+    }));
+    jest.doMock('../dtos/get-processed-zip-response.dto', () => ({
+      __esModule: true,
+      GetProcessedZipResponseDto: class GetProcessedZipResponseDto {},
+    }));
+    jest.doMock('../dtos/list-videos-response.dto', () => ({
+      __esModule: true,
+      ListAllVideosResponseDto: class ListAllVideosResponseDto {},
+    }));
+
+    // ✅ evita qualquer import indireto do AppLoggerService estourar nos testes
+    jest.doMock('src/infra/api/common/logger/app-logger.service', () => ({
+      __esModule: true,
+      AppLoggerService: class AppLoggerService {
+        info() {}
+        warn() {}
+        error() {}
+      },
+    }));
+
     jest.doMock('fs', () => ({
       __esModule: true,
       default: {
@@ -72,16 +96,13 @@ describe('VideosHttpController (100% coverage)', () => {
       },
     }));
 
-    jest.doMock(
-      'src/video/adapters/controllers/video-controller',
-      () => ({
-        VideoController: jest.fn().mockImplementation(() => ({
-          upload: uploadMock,
-          list: listMock,
-          downloadProcessedZip: downloadZipMock,
-        })),
-      }),
-    );
+    jest.doMock('src/video/adapters/controllers/video-controller', () => ({
+      VideoController: jest.fn().mockImplementation(() => ({
+        upload: uploadMock,
+        list: listMock,
+        downloadProcessedZip: downloadZipMock,
+      })),
+    }));
 
     let VideosHttpController: any;
     let AppError: any;
@@ -89,8 +110,7 @@ describe('VideosHttpController (100% coverage)', () => {
     jest.isolateModules(() => {
       VideosHttpController =
         require('./videos-http.controller').VideosHttpController;
-      AppError =
-        require('src/video/application/errors/app-error').AppError;
+      AppError = require('src/video/application/errors/app-error').AppError;
     });
 
     return { VideosHttpController, AppError };
@@ -234,8 +254,8 @@ describe('VideosHttpController (100% coverage)', () => {
       const res = await controller.upload(
         makeReq({
           'content-type': 'multipart/form-data',
-          'x-user-empty': '',
-          'x-user-': 'x',
+          'x-user-empty': '', // ignorado
+          'x-user-': 'x', // ignorado
           'x-user-id': 'u1',
           'x-user-email': 'u1@mail.com',
           'x-user-is-admin': 'true',
@@ -252,11 +272,15 @@ describe('VideosHttpController (100% coverage)', () => {
         expect.objectContaining({
           id: 'u1',
           email: 'u1@mail.com',
-          isAdmin: 'true',
+          attributes: expect.objectContaining({
+            'is-admin': 'true',
+          }),
         }),
       );
 
-      expect((userArg as any)['']).toBe('x');
+      // não existe mais lixo
+      expect(userArg.attributes?.['']).toBeUndefined();
+      expect(userArg.attributes?.['empty']).toBeUndefined();
 
       expect(mappedArg).toEqual([
         {
@@ -306,6 +330,29 @@ describe('VideosHttpController (100% coverage)', () => {
           size: 10,
         }),
       ).not.toThrow();
+    });
+
+    // ✅ NOVO TESTE: cobre branch do header vindo como array (linha 178)
+    it('list: aceita x-user-id/x-user-email como array', async () => {
+      const { VideosHttpController } = bootWithEnv();
+      const controller = new VideosHttpController(makeDs(100));
+
+      listMock.mockResolvedValue([{ id: 'v1' }]);
+
+      const res = await controller.list(
+        makeReq({
+          'x-user-id': ['u1'],
+          'x-user-email': ['u1@mail.com'],
+        }),
+      );
+
+      expect(res).toEqual([{ id: 'v1' }]);
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'u1',
+          email: 'u1@mail.com',
+        }),
+      );
     });
 
     it('list: chama VideoController.list com user props', async () => {

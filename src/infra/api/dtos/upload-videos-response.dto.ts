@@ -1,4 +1,4 @@
-// src/video/adapters/http/dtos/upload-videos-response.dto.ts
+
 import { ApiProperty } from '@nestjs/swagger';
 import { VideoStatusDto } from './video-status.dto';
 

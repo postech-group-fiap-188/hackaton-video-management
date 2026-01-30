@@ -1,8 +1,9 @@
 import type { AppLogger } from 'src/video/application/ports/app-logger';
 import { AppError } from '../errors/app-error';
 import type { VideoGateway } from '../gateways/video-gateway';
-import {
+
 import { VideoStatus } from 'src/video/domain/enums/video-status';
+import {
   UserContext,
   UserContextProps,
 } from 'src/video/domain/entities/user-context';

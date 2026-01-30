@@ -11,7 +11,7 @@ type VideoLean = {
   originalFileName: string;
   contentType: string;
   size: number;
-  status: VideoStatus.PENDING | 'SUCCEEDED' | 'ERROR';
+  status: 'PENDING' | 'SUCCEEDED' | 'ERROR';
   errorMessage?: string;
   createdAt: Date;
   updatedAt: Date;

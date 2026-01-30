@@ -1,11 +1,6 @@
 export type UserContextProps = {
   id: string;
   email?: string;
-
-  /**
-   * Extra attributes carried from the request context (e.g. tenantId, role, etc).
-   * Keep it explicit to avoid a "bag of strings" leaking into the domain.
-   */
   attributes?: Record<string, string | undefined>;
 };
 
@@ -13,7 +8,6 @@ export class UserContext {
   private readonly props: UserContextProps;
 
   private constructor(props: UserContextProps) {
-    // Entity can be immutable as well; identity is the important part here.
     this.props = Object.freeze({
       ...props,
       attributes: Object.freeze({ ...(props.attributes ?? {}) }),
@@ -54,9 +48,6 @@ export class UserContext {
     };
   }
 
-  /**
-   * Entity equality: identity-based.
-   */
   equals(other?: UserContext): boolean {
     if (!other) return false;
     return this.id === other.id;
