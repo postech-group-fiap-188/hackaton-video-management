@@ -24,9 +24,6 @@ jobs:
 
   tests:
     uses: ./.github/workflows/test.yml
-    with:
-      app_dir: app
-      node_version: 22
 
   sonarqube:
     needs: tests
