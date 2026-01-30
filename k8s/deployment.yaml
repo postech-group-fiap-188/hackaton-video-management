@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hackaton-video-management
+  labels:
+    app: hackaton-video-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hackaton-video-management
+  template:
+    metadata:
+      labels:
+        app: hackaton-video-management
+    spec:
+      containers:
+        - name: api
+          image: hackaton-video-management:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: hackaton-video-management-config
+            - secretRef:
+                name: hackaton-video-management-secrets
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

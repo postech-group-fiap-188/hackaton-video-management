@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hackaton-video-management
+  annotations:
+    # Example for nginx ingress:
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+    # nginx.ingress.kubernetes.io/proxy-body-size: "2048m"
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: hackaton-video-management.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hackaton-video-management
+                port:
+                  number: 80

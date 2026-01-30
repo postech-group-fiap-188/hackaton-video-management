@@ -1,0 +1,60 @@
+import type {
+  VideoGateway,
+  ProcessingEvent,
+} from 'src/video/application/gateways/video-gateway';
+import type { VideoMetadata } from 'src/video/domain/video-metadata';
+import type { UserContext } from 'src/video/domain/entities/user-context';
+
+import { MongooseVideoRepositoryAdapter } from 'src/infra/database/mongoose/repositories/video-repository.adapter';
+import { S3StorageAdapter } from 'src/infra/aws/s3/s3-storage.adapter';
+import { SnsVideoProcessingAdapter } from 'src/infra/aws/sns/sns-video-processing.adapter';
+import { VideoStatus } from 'src/video/domain/enums/video-status';
+
+export class VideoGatewayImpl implements VideoGateway {
+  constructor(
+    private readonly repo: MongooseVideoRepositoryAdapter,
+    private readonly s3: S3StorageAdapter,
+    private readonly sns: SnsVideoProcessingAdapter,
+  ) {}
+
+  createPending(input: Omit<VideoMetadata, 'status'>): Promise<VideoMetadata> {
+    return this.repo.createPending(input);
+  }
+
+  listByUserId(userId: UserContext['id']): Promise<VideoMetadata[]> {
+    return this.repo.listByUserId(userId);
+  }
+
+  findById(videoId: string): Promise<VideoMetadata | null> {
+    return this.repo.findById(videoId);
+  }
+
+  updateStatus(input: {
+    videoId: string;
+    status: VideoStatus;
+    errorMessage?: string;
+  }): Promise<boolean> {
+    return this.repo.updateStatus(input);
+  }
+
+  uploadMultipartFromPath(input: {
+    bucket: string;
+    key: string;
+    filePath: string;
+    contentType: string;
+  }): Promise<void> {
+    return this.s3.uploadMultipartFromPath(input);
+  }
+
+  presignGetObject(input: {
+    bucket: string;
+    key: string;
+    expiresInSeconds: number;
+  }): Promise<string> {
+    return this.s3.presignGetObject(input);
+  }
+
+  publishProcessingEvent(input: ProcessingEvent): Promise<void> {
+    return this.sns.publishProcessingEvent({ event: input });
+  }
+}
