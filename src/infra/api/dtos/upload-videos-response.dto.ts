@@ -1,4 +1,3 @@
-
 import { ApiProperty } from '@nestjs/swagger';
 import { VideoStatusDto } from './video-status.dto';
 
