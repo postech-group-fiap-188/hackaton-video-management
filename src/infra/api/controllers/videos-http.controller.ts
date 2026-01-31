@@ -4,6 +4,7 @@ import {
   Get,
   Inject,
   Param,
+  PayloadTooLargeException,
   Post,
   Req,
   UploadedFiles,
@@ -12,8 +13,8 @@ import {
 import type { Request } from 'express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   ApiBody,
@@ -37,6 +38,36 @@ import { ListAllVideosResponseDto } from '../dtos/list-videos-response.dto';
 
 type ParsedUserContextProps = Omit<UserContextProps, 'id'> & { id?: string };
 
+function getEnvInt(
+  name: string,
+  def: number,
+  min: number,
+  max: number,
+): number {
+  const raw = process.env[name];
+  const n = raw ? Number(raw) : def;
+
+  if (!Number.isFinite(n)) return def;
+
+  const i = Math.floor(n);
+  if (i < min) return min;
+  if (i > max) return max;
+  return i;
+}
+
+const MAX_FILES_PER_REQUEST = getEnvInt('MAX_FILES_PER_REQUEST', 3, 1, 10);
+const MAX_VIDEO_BYTES = getEnvInt(
+  'MAX_VIDEO_BYTES',
+  200 * 1024 * 1024,
+  1,
+  2_147_483_648,
+);
+
+const MULTIPART_OVERHEAD_BYTES = 5 * 1024 * 1024;
+
+const MAX_REQUEST_BYTES =
+  MAX_VIDEO_BYTES * MAX_FILES_PER_REQUEST + MULTIPART_OVERHEAD_BYTES;
+
 @ApiTags('videos')
 @ApiSecurity('x-user-id')
 @ApiSecurity('x-user-email')
@@ -55,14 +86,18 @@ export class VideosHttpController {
     schema: {
       type: 'object',
       properties: {
-        videos: { type: 'array', items: { type: 'string', format: 'binary' } },
+        videos: {
+          type: 'array',
+          maxItems: MAX_FILES_PER_REQUEST,
+          items: { type: 'string', format: 'binary' },
+        },
       },
       required: ['videos'],
     },
   })
   @ApiOkResponse({ type: UploadVideosResponseDto })
   @UseInterceptors(
-    FilesInterceptor('videos', Number(process.env.MAX_FILES_PER_REQUEST ?? 3), {
+    FilesInterceptor('videos', MAX_FILES_PER_REQUEST, {
       storage: diskStorage({
         destination: (_req, _file, cb) => {
           const dir = '/tmp/uploads';
@@ -72,11 +107,14 @@ export class VideosHttpController {
         filename: (_req, file, cb) => {
           const safe = file.originalname
             .normalize('NFC')
-            .replace(/[^\p{L}\p{N}._\-()]+/gu, '_');
+            .replaceAll(/[^\p{L}\p{N}._\-()]+/gu, '_');
           cb(null, `${Date.now()}-${safe}`);
         },
       }),
-      limits: { fileSize: Number(process.env.MAX_VIDEO_BYTES ?? 2147483648) },
+      limits: {
+        fileSize: MAX_VIDEO_BYTES,
+        files: MAX_FILES_PER_REQUEST,
+      },
     }),
   )
   async upload(
@@ -85,6 +123,11 @@ export class VideosHttpController {
     @UploadedFiles() files: Array<Express.Multer.File>,
   ): Promise<UploadVideosResponseDto> {
     const user = getUserPropsFromHeaders(req);
+
+    const contentLength = Number(req.headers['content-length'] ?? 0);
+    if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+      throw new PayloadTooLargeException('Payload too large');
+    }
 
     if (!files || files.length === 0) {
       throw new BadRequestException('videos is required');
@@ -156,39 +199,63 @@ function getHeaderString(
 function parseXUserHeaders(
   headers: Record<string, unknown>,
 ): ParsedUserContextProps {
-  const lower: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(headers)) lower[k.toLowerCase()] = v;
+  const lower = toLowerHeaderMap(headers);
 
   const id = getHeaderString(lower, 'x-user-id');
   const email = getHeaderString(lower, 'x-user-email');
 
-  const attributes: Record<string, string> = {};
-
-  for (const [k, v] of Object.entries(lower)) {
-    if (!k.startsWith('x-user-')) continue;
-
-    const suffix = k.slice('x-user-'.length).trim();
-    if (!suffix) continue;
-    if (suffix === 'id' || suffix === 'email') continue;
-
-    const value =
-      typeof v === 'string'
-        ? v
-        : Array.isArray(v) && typeof v[0] === 'string'
-          ? v[0]
-          : undefined;
-
-    const cleaned = (value ?? '').trim();
-    if (!cleaned) continue;
-
-    attributes[suffix] = cleaned;
-  }
+  const attributes = extractUserAttributes(lower);
 
   return {
     id,
     email,
     attributes: Object.keys(attributes).length ? attributes : undefined,
   };
+}
+
+function toLowerHeaderMap(
+  headers: Record<string, unknown>,
+): Record<string, unknown> {
+  const lower: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    lower[k.toLowerCase()] = v;
+  }
+  return lower;
+}
+
+function extractUserAttributes(
+  lower: Record<string, unknown>,
+): Record<string, string> {
+  const attributes: Record<string, string> = {};
+
+  for (const [k, v] of Object.entries(lower)) {
+    const suffix = getUserAttributeSuffix(k);
+    if (!suffix) continue;
+
+    const cleaned = (readHeaderValue(v) ?? '').trim();
+    if (!cleaned) continue;
+
+    attributes[suffix] = cleaned;
+  }
+
+  return attributes;
+}
+
+function getUserAttributeSuffix(key: string): string | null {
+  const prefix = 'x-user-';
+  if (!key.startsWith(prefix)) return null;
+
+  const suffix = key.slice(prefix.length).trim();
+  if (!suffix) return null;
+  if (suffix === 'id' || suffix === 'email') return null;
+
+  return suffix;
+}
+
+function readHeaderValue(v: unknown): string | undefined {
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+  return undefined;
 }
 
 function validateVideo(
