@@ -1,12 +1,12 @@
-import type { AppLogger } from 'src/video/application/ports/app-logger';
+import type { AppLogger } from 'src/application/ports/app-logger';
 import { AppError } from '../errors/app-error';
 import type { VideoGateway } from '../gateways/video-gateway';
 
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { VideoStatus } from 'src/domain/enums/video-status';
 import {
   UserContext,
   UserContextProps,
-} from 'src/video/domain/entities/user-context';
+} from 'src/domain/entities/user-context';
 
 export class GetProcessedVideo {
   constructor(

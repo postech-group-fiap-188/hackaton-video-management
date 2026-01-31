@@ -96,7 +96,7 @@ describe('VideosHttpController (100% coverage)', () => {
       },
     }));
 
-    jest.doMock('src/video/adapters/controllers/video-controller', () => ({
+    jest.doMock('src/adapters/controllers/video-controller', () => ({
       VideoController: jest.fn().mockImplementation(() => ({
         upload: uploadMock,
         list: listMock,
@@ -110,7 +110,7 @@ describe('VideosHttpController (100% coverage)', () => {
     jest.isolateModules(() => {
       VideosHttpController =
         require('./videos-http.controller').VideosHttpController;
-      AppError = require('src/video/application/errors/app-error').AppError;
+      AppError = require('src/application/errors/app-error').AppError;
     });
 
     return { VideosHttpController, AppError };

@@ -1,6 +1,6 @@
 import { UserContextProps } from '../../domain/entities/user-context';
 import { VideoMetadata } from '../../domain/video-metadata';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 export type ProcessingEvent = {
   videoId: string;

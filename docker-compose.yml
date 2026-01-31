@@ -34,5 +34,5 @@ services:
       - "9229:9229"
     environment:
       NODE_OPTIONS: "--enable-source-maps"
-      START_CMD: "node --inspect=0.0.0.0:9229 dist/main.js"
-    command: ["sh", "-lc", "/srv/app/docker/entrypoint.sh"]
+      START_CMD: "node --inspect=0.0.0.0:9229 /srv/dist/main.js"
+    command: ["sh", "-lc", "/srv/docker/entrypoint.sh"]

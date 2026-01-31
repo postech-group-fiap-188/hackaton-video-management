@@ -1,14 +1,14 @@
 import type {
   VideoGateway,
   ProcessingEvent,
-} from 'src/video/application/gateways/video-gateway';
-import type { VideoMetadata } from 'src/video/domain/video-metadata';
-import type { UserContext } from 'src/video/domain/entities/user-context';
+} from 'src/application/gateways/video-gateway';
+import type { VideoMetadata } from 'src/domain/video-metadata';
+import type { UserContext } from 'src/domain/entities/user-context';
 
 import { MongooseVideoRepositoryAdapter } from 'src/infra/database/mongoose/repositories/video-repository.adapter';
 import { S3StorageAdapter } from 'src/infra/aws/s3/s3-storage.adapter';
 import { SnsVideoProcessingAdapter } from 'src/infra/aws/sns/sns-video-processing.adapter';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 export class VideoGatewayImpl implements VideoGateway {
   constructor(

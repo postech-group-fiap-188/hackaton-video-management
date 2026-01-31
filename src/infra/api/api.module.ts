@@ -10,7 +10,7 @@ import { AppLoggerService } from './common/logger/app-logger.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
 
-import { VideoGatewayImpl } from 'src/video/adapters/gateway/video-gateway-impl';
+import { VideoGatewayImpl } from 'src/adapters/gateway/video-gateway-impl';
 import { MongooseVideoRepositoryAdapter } from 'src/infra/database/mongoose/repositories/video-repository.adapter';
 import { S3StorageAdapter } from 'src/infra/aws/s3/s3-storage.adapter';
 import type { VideoDataSource } from 'src/interfaces/video-data-source';

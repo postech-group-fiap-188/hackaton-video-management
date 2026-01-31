@@ -1,7 +1,7 @@
 import { MongooseVideoRepositoryAdapter } from './video-repository.adapter';
 import type { Model } from 'mongoose';
-import { UserContext } from 'src/video/domain/entities/user-context';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { UserContext } from 'src/domain/entities/user-context';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 type VideoLean = {
   id: string;

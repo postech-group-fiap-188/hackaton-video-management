@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
-import { UserContextProps } from 'src/video/domain/entities/user-context';
+import { UserContextProps } from 'src/domain/entities/user-context';
 
 export type ProcessingEvent = {
   videoId: string;

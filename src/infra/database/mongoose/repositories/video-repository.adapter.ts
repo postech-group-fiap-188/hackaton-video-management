@@ -1,9 +1,9 @@
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { VideoMetadata } from 'src/video/domain/video-metadata';
+import { VideoMetadata } from 'src/domain/video-metadata';
 import { VideoModel } from '../schemas/video.schema';
-import { UserContext } from 'src/video/domain/entities/user-context';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { UserContext } from 'src/domain/entities/user-context';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 type VideoLean = {
   id: string;

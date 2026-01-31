@@ -1,4 +1,4 @@
-import { VideoMetadata } from 'src/video/domain/video-metadata';
+import { VideoMetadata } from 'src/domain/video-metadata';
 
 export class ListVideosPresenter {
   static toJSON(videos: VideoMetadata[]) {

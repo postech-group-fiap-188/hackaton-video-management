@@ -1,4 +1,4 @@
-import { VideoGateway } from 'src/video/application/gateways/video-gateway';
+import { VideoGateway } from 'src/application/gateways/video-gateway';
 import { AppLoggerService } from 'src/infra/api/common/logger/app-logger.service';
 
 export interface VideoDataSource {

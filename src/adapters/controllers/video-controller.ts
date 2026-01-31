@@ -9,7 +9,7 @@ import { UploadVideosPresenter } from '../presenters/upload-videos.presenter';
 import { ListVideosPresenter } from '../presenters/list-videos.presenter';
 import { DownloadProcessedZipPresenter } from '../presenters/download-processed-zip.presenter';
 import { UserContextProps } from '../../domain/entities/user-context';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 export class VideoController {
   constructor(private readonly ds: VideoDataSource) {}

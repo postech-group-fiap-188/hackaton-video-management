@@ -1,6 +1,6 @@
-import type { AppLogger } from 'src/video/application/ports/app-logger';
+import type { AppLogger } from 'src/application/ports/app-logger';
 import { VideoGateway } from '../gateways/video-gateway';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 export class UpdateVideoStatus {
   constructor(

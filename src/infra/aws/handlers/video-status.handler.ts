@@ -3,9 +3,9 @@ import type { Message } from '@aws-sdk/client-sqs';
 import { SqsConsumerEventHandler, SqsMessageHandler } from '@ssut/nestjs-sqs';
 import { z } from 'zod';
 
-import { UpdateVideoStatus } from 'src/video/application/usecases/update-video-status';
+import { UpdateVideoStatus } from 'src/application/usecases/update-video-status';
 import { AppLoggerService } from 'src/infra/api/common/logger/app-logger.service';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 type StatusMessage = {
   videoId: string;

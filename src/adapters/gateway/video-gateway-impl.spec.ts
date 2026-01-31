@@ -1,7 +1,7 @@
 import { VideoGatewayImpl } from './video-gateway-impl';
-import type { VideoMetadata } from 'src/video/domain/video-metadata';
-import { UserContext } from 'src/video/domain/entities/user-context';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import type { VideoMetadata } from 'src/domain/video-metadata';
+import { UserContext } from 'src/domain/entities/user-context';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 type Repo = {
   createPending: (input: Omit<VideoMetadata, 'status'>) => Promise<unknown>;

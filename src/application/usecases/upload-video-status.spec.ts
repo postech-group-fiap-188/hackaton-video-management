@@ -1,6 +1,6 @@
 import { UpdateVideoStatus } from './update-video-status';
 import type { VideoGateway } from '../gateways/video-gateway';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 type LoggerMock = {
   info: jest.Mock<void, [string, Record<string, unknown>?]>;

@@ -2,9 +2,9 @@ import { GetProcessedVideo } from './get-processed-video';
 import { AppError } from '../errors/app-error';
 import type { VideoGateway } from '../gateways/video-gateway';
 import type { VideoMetadata } from '../../domain/video-metadata';
-import { UserContext } from 'src/video/domain/entities/user-context';
-import type { AppLogger } from 'src/video/application/ports/app-logger';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { UserContext } from 'src/domain/entities/user-context';
+import type { AppLogger } from 'src/application/ports/app-logger';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 type LoggerMock = {
   info: jest.Mock<void, [string, Record<string, unknown>?]>;

@@ -1,4 +1,4 @@
-import { UploadResultItem } from 'src/video/application/usecases/upload-videos';
+import { UploadResultItem } from 'src/application/usecases/upload-videos';
 
 export class UploadVideosPresenter {
   static toJSON(items: UploadResultItem[]) {

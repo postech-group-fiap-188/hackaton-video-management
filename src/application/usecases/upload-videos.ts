@@ -6,9 +6,9 @@ import type { VideoGateway } from '../gateways/video-gateway';
 import {
   UserContext,
   UserContextProps,
-} from 'src/video/domain/entities/user-context';
-import type { AppLogger } from 'src/video/application/ports/app-logger';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+} from 'src/domain/entities/user-context';
+import type { AppLogger } from 'src/application/ports/app-logger';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 export type UploadResultItem =
   | {

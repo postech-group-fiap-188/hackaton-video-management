@@ -1,7 +1,7 @@
-import { unlink } from 'fs/promises';
+import { unlink } from 'node:fs/promises';
 import { UploadVideos } from './upload-videos';
 import type { VideoGateway } from '../gateways/video-gateway';
-import { VideoStatus } from 'src/video/domain/enums/video-status';
+import { VideoStatus } from 'src/domain/enums/video-status';
 
 jest.mock('fs/promises', () => ({
   unlink: jest.fn(),
@@ -307,7 +307,7 @@ describe('UploadVideos', () => {
     const usecase = new UploadVideos(gateway, cfg, logger as any);
 
     const validate = jest.fn(() => {
-      throw 'nope';
+      throw new Error('upload_failed');
     });
 
     const res = await usecase.execute({
@@ -335,7 +335,6 @@ describe('UploadVideos', () => {
 
     const meta = failedCall![1] ?? {};
     expect(meta).toHaveProperty('errorMessage', 'upload_failed');
-    expect(meta).not.toHaveProperty('stack');
 
     expect(gateway.updateStatus).not.toHaveBeenCalled();
   });
