@@ -1,37 +1,25 @@
 name: CI
-
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
     branches: [main, release]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch:
+  workflow_call:
 
 jobs:
   build:
-    uses: ./.github/workflows/build.yml
-    with:
-      app_dir: .
-      node_version: 22
+    uses: ./.github/workflows/_build.yml
 
   lint:
-    uses: ./.github/workflows/lint.yml
-    with:
-      app_dir: .
-      node_version: 22
+    uses: ./.github/workflows/_lint.yml
 
   tests:
-    needs: build
-    uses: ./.github/workflows/test.yml
-    with:
-      app_dir: .
-      node_version: 22
+    needs: build 
+    uses: ./.github/workflows/_tests.yml
 
   sonarqube:
-    needs: tests
-    uses: ./.github/workflows/sonarqube.yml
+    needs: tests 
+    uses: ./.github/workflows/_sonarqube.yml
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
