@@ -19,6 +19,13 @@ jobs:
         with:
           name: coverage-reports
           path: .
+      - name: Debug coverage presence
+        run: |
+          echo "PWD=$(pwd)"
+          ls -la
+          ls -la coverage || true
+          find . -maxdepth 6 -name "lcov.info" -print
+          test -f coverage/lcov.info && echo "OK: coverage/lcov.info exists" || (echo "MISSING: coverage/lcov.info" && exit 1)
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
