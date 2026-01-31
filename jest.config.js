@@ -41,7 +41,7 @@ module.exports = {
     '!<rootDir>/src/scripts/**/*.ts',
     '!<rootDir>/src/infra/api/dtos/**/*.ts',
   ],
-  coverageDirectory: '<rootDir>/coverage/unit',
+  coverageDirectory: '<rootDir>/coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   coverageThreshold: {
     global: { branches: 90, functions: 90, lines: 90, statements: 90 },

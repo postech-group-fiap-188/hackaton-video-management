@@ -16,6 +16,14 @@ jobs:
         run: npm ci
       - name: Testing with coverage
         run: npm run test:cov
+        
+      - name: Verify coverage output
+        run: |
+            echo "PWD=$(pwd)"
+            ls -la
+            ls -la coverage || true
+            find . -maxdepth 6 -name "lcov.info" -print
+            test -f coverage/lcov.info       
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
