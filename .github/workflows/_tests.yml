@@ -16,17 +16,15 @@ jobs:
         run: npm ci
       - name: Testing with coverage
         run: npm run test:cov
-        
-      - name: Verify coverage output
-        run: |
-            echo "PWD=$(pwd)"
-            ls -la
-            ls -la coverage || true
-            find . -maxdepth 6 -name "lcov.info" -print
-            test -f coverage/lcov.info       
 
-      - name: Upload coverage report
+      - name: Verify lcov exists
+        run: |
+          ls -la coverage
+          test -f coverage/lcov.info
+
+      - name: Upload lcov.info
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-reports
-          path: coverage/
+          name: lcov
+          path: coverage/lcov.info
+          if-no-files-found: error

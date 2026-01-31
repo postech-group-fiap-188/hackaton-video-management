@@ -14,24 +14,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download coverage reports
+      - name: Download lcov.info
         uses: actions/download-artifact@v4
         with:
-          name: coverage-reports
-          path: .
-      - name: Debug coverage presence
+          name: lcov
+          path: coverage
+
+      - name: Check lcov
         run: |
-          echo "PWD=$(pwd)"
-          ls -la
-          ls -la coverage || true
-          find . -maxdepth 6 -name "lcov.info" -print
-          test -f coverage/lcov.info && echo "OK: coverage/lcov.info exists" || (echo "MISSING: coverage/lcov.info" && exit 1)
+          ls -la coverage
+          test -f coverage/lcov.info
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         with:
           args: >
             -Dsonar.qualitygate.wait=true
-            -Dsonar.verbose=true
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
