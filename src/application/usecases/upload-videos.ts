@@ -1,6 +1,6 @@
-import { randomUUID } from 'crypto';
-import { unlink } from 'fs/promises';
-import path from 'path';
+import { randomUUID } from 'node:crypto';
+import { unlink } from 'node:fs/promises';
+import path from 'node:path';
 
 import type { VideoGateway } from '../gateways/video-gateway';
 import {

@@ -50,7 +50,6 @@ describe('VideosHttpController (100% coverage)', () => {
     capturedFilesInterceptorOpts = undefined;
     capturedMaxFiles = undefined;
 
-    // ✅ evita Jest carregar/avaliar DTOs reais (Swagger/reflect etc.)
     jest.doMock('../dtos/upload-videos-response.dto', () => ({
       __esModule: true,
       UploadVideosResponseDto: class UploadVideosResponseDto {},
@@ -64,7 +63,6 @@ describe('VideosHttpController (100% coverage)', () => {
       ListAllVideosResponseDto: class ListAllVideosResponseDto {},
     }));
 
-    // ✅ evita qualquer import indireto do AppLoggerService estourar nos testes
     jest.doMock('src/infra/api/common/logger/app-logger.service', () => ({
       __esModule: true,
       AppLoggerService: class AppLoggerService {
@@ -332,7 +330,6 @@ describe('VideosHttpController (100% coverage)', () => {
       ).not.toThrow();
     });
 
-    // ✅ NOVO TESTE: cobre branch do header vindo como array (linha 178)
     it('list: aceita x-user-id/x-user-email como array', async () => {
       const { VideosHttpController } = bootWithEnv();
       const controller = new VideosHttpController(makeDs(100));

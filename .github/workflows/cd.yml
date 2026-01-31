@@ -114,8 +114,8 @@ jobs:
 
       - name: Output deployment details
         run: |
-          echo "✅ Application deployed successfully!"
-          echo "📦 Image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ needs.build.outputs.image-tag }}"
-          echo "🏗️ Cluster: ${{ env.CLUSTER_NAME }}"
-          echo "📁 Namespace: ${{ env.NAMESPACE }}"
-          echo "🔗 Helm Release: hackaton-video-management"
+          echo "Application deployed successfully!"
+          echo "Image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ needs.build.outputs.image-tag }}"
+          echo "Cluster: ${{ env.CLUSTER_NAME }}"
+          echo "Namespace: ${{ env.NAMESPACE }}"
+          echo "Helm Release: hackaton-video-management"

@@ -76,4 +76,4 @@ $AWS sqs set-queue-attributes \
   --queue-url "$DEBUG_QUEUE_URL" \
   --attributes "$ATTR_JSON" >/dev/null
 
-echo "[sns-debug] done ✅"
+echo "[sns-debug] done"

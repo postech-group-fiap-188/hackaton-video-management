@@ -26,5 +26,5 @@ else
   log "WARN: sns-debug.sh not found, skipping"
 fi
 
-log "done ✅"
+log "done"
 exit 0
