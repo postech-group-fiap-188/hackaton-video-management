@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
-import { UserContextProps } from 'src/domain/entities/user-context';
+import { VideoProcessingPublisher } from 'src/interfaces/video-processing-publisher';
+import { UserProps } from 'src/domain/entities/user-context';
 
 export type ProcessingEvent = {
   videoId: string;
-  user: UserContextProps;
+  user: UserProps;
   inputBucket: string;
   inputKey: string;
   outputBucket: string;
@@ -17,11 +18,12 @@ export type ProcessingEvent = {
 };
 
 @Injectable()
-export class SnsVideoProcessingAdapter {
+export class SnsVideoProcessingAdapter extends VideoProcessingPublisher {
   private readonly client: SNSClient;
   private readonly topicArn: string;
 
   constructor(config: ConfigService) {
+    super();
     const region = config.get<string>('AWS_REGION') ?? 'us-east-1';
     const endpoint = config.get<string>('AWS_ENDPOINT_URL') ?? undefined;
 

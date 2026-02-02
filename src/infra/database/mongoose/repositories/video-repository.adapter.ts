@@ -1,76 +1,74 @@
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { VideoMetadata } from 'src/domain/video-metadata';
 import { VideoModel } from '../schemas/video.schema';
-import { UserContext } from 'src/domain/entities/user-context';
 import { VideoStatus } from 'src/domain/enums/video-status';
 
-type VideoLean = {
-  id: string;
-  userId: string;
-  inputBucket: string;
-  inputKey: string;
-  originalFileName: string;
-  contentType: string;
-  size: number;
-  status: VideoStatus;
-  errorMessage?: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
+import {
+  VideoRepositoryDataSource,
+  VideoRecord,
+  VideoStatusRecord,
+} from 'src/interfaces/video-repository-data-source';
 
-export class MongooseVideoRepositoryAdapter {
+type VideoLean = VideoRecord;
+
+export class MongooseVideoRepositoryAdapter extends VideoRepositoryDataSource {
   constructor(
-    @InjectModel(VideoModel.name) private readonly model: Model<VideoModel>,
-  ) {}
+    @InjectModel(VideoModel.name)
+    private readonly model: Model<VideoModel>,
+  ) {
+    super();
+  }
 
-  async createPending(
-    input: Omit<VideoMetadata, 'status'>,
-  ): Promise<VideoMetadata> {
-    const { user, ...rest } = input;
-
+  async createVideoMetaData(
+    input: Omit<VideoRecord, 'status'>,
+  ): Promise<VideoRecord> {
     const doc = await this.model.create({
-      ...rest,
-      userId: user.id,
+      ...input,
       status: VideoStatus.PENDING,
     });
 
-    return toDomain(doc.toObject() as VideoLean);
+    return toRecord(doc.toObject() as VideoLean);
   }
 
-  async listByUserId(userId: string): Promise<VideoMetadata[]> {
+  async listByUserId(userId: string): Promise<VideoRecord[]> {
     const docs = await this.model
       .find({ userId })
       .sort({ createdAt: -1 })
       .lean<VideoLean[]>();
 
-    return docs.map(toDomain);
+    return docs.map(toRecord);
   }
 
-  async findById(videoId: string): Promise<VideoMetadata | null> {
+  async findById(videoId: string): Promise<VideoRecord | null> {
     const doc = await this.model
       .findOne({ id: videoId })
       .lean<VideoLean | null>();
-    return doc ? toDomain(doc) : null;
+    return doc ? toRecord(doc) : null;
   }
 
   async updateStatus(input: {
     videoId: string;
-    status: VideoStatus;
+    status: VideoStatusRecord;
     errorMessage?: string;
   }): Promise<boolean> {
     const res = await this.model.updateOne(
       { id: input.videoId },
-      { $set: { status: input.status, errorMessage: input.errorMessage } },
+      {
+        $set: {
+          status: input.status as unknown as VideoStatus,
+          errorMessage: input.errorMessage,
+        },
+      },
     );
+
     return res.matchedCount === 1;
   }
 }
 
-function toDomain(d: VideoLean): VideoMetadata {
+function toRecord(d: VideoLean): VideoRecord {
   return {
     id: d.id,
-    user: UserContext.create({ id: d.userId }),
+    userId: d.userId,
 
     inputBucket: d.inputBucket,
     inputKey: d.inputKey,
@@ -79,7 +77,7 @@ function toDomain(d: VideoLean): VideoMetadata {
     contentType: d.contentType,
     size: d.size,
 
-    status: d.status,
+    status: d.status as unknown as VideoStatusRecord,
     errorMessage: d.errorMessage,
 
     createdAt: d.createdAt,

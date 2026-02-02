@@ -1,32 +1,109 @@
-import type {
+import { Video } from 'src/domain/entities/video';
+import { User } from 'src/domain/entities/user-context';
+import { VideoStatus } from 'src/domain/enums/video-status';
+
+import {
   VideoGateway,
   ProcessingEvent,
 } from 'src/application/gateways/video-gateway';
-import type { VideoMetadata } from 'src/domain/video-metadata';
-import type { UserContext } from 'src/domain/entities/user-context';
 
-import { MongooseVideoRepositoryAdapter } from 'src/infra/database/mongoose/repositories/video-repository.adapter';
-import { S3StorageAdapter } from 'src/infra/aws/s3/s3-storage.adapter';
-import { SnsVideoProcessingAdapter } from 'src/infra/aws/sns/sns-video-processing.adapter';
-import { VideoStatus } from 'src/domain/enums/video-status';
+import { VideoRepositoryDataSource } from 'src/interfaces/video-repository-data-source';
+import { VideoStorageProvider } from 'src/interfaces/video-storage-provider';
+import { VideoProcessingPublisher } from 'src/interfaces/video-processing-publisher';
 
 export class VideoGatewayImpl implements VideoGateway {
   constructor(
-    private readonly repo: MongooseVideoRepositoryAdapter,
-    private readonly s3: S3StorageAdapter,
-    private readonly sns: SnsVideoProcessingAdapter,
+    private readonly repo: VideoRepositoryDataSource,
+    private readonly s3: VideoStorageProvider,
+    private readonly sns: VideoProcessingPublisher,
   ) {}
 
-  createPending(input: Omit<VideoMetadata, 'status'>): Promise<VideoMetadata> {
-    return this.repo.createPending(input);
+  async createVideoMetaData(video: Video): Promise<Video> {
+    const created = await this.repo.createVideoMetaData({
+      id: video.id,
+      userId: video.user.id,
+
+      inputBucket: video.inputBucket,
+      inputKey: video.inputKey,
+
+      originalFileName: video.originalFileName,
+      contentType: video.contentType,
+      size: video.size,
+
+      errorMessage: video.errorMessage,
+
+      createdAt: video.createdAt,
+      updatedAt: video.updatedAt,
+    });
+
+    return new Video(
+      User.create({ id: created.userId }),
+
+      created.inputBucket,
+      created.inputKey,
+
+      created.originalFileName,
+      created.contentType,
+      created.size,
+
+      created.status as VideoStatus,
+      created.errorMessage,
+
+      created.createdAt,
+      created.updatedAt,
+
+      created.id,
+    );
   }
 
-  listByUserId(userId: UserContext['id']): Promise<VideoMetadata[]> {
-    return this.repo.listByUserId(userId);
+  async listByUserId(userId: string): Promise<Video[]> {
+    const items = await this.repo.listByUserId(userId);
+
+    return items.map(
+      (video) =>
+        new Video(
+          User.create({ id: video.userId }),
+
+          video.inputBucket,
+          video.inputKey,
+
+          video.originalFileName,
+          video.contentType,
+          video.size,
+
+          video.status as VideoStatus,
+          video.errorMessage,
+
+          video.createdAt,
+          video.updatedAt,
+
+          video.id,
+        ),
+    );
   }
 
-  findById(videoId: string): Promise<VideoMetadata | null> {
-    return this.repo.findById(videoId);
+  async findById(videoId: string): Promise<Video | null> {
+    const video = await this.repo.findById(videoId);
+    if (!video) return null;
+
+    return new Video(
+      User.create({ id: video.userId }),
+
+      video.inputBucket,
+      video.inputKey,
+
+      video.originalFileName,
+      video.contentType,
+      video.size,
+
+      video.status as VideoStatus,
+      video.errorMessage,
+
+      video.createdAt,
+      video.updatedAt,
+
+      video.id,
+    );
   }
 
   updateStatus(input: {
@@ -34,7 +111,11 @@ export class VideoGatewayImpl implements VideoGateway {
     status: VideoStatus;
     errorMessage?: string;
   }): Promise<boolean> {
-    return this.repo.updateStatus(input);
+    return this.repo.updateStatus({
+      videoId: input.videoId,
+      status: input.status,
+      errorMessage: input.errorMessage,
+    });
   }
 
   uploadMultipartFromPath(input: {

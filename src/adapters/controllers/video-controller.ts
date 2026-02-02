@@ -1,4 +1,8 @@
-import type { VideoDataSource } from 'src/interfaces/video-data-source';
+import { VideoRepositoryDataSource } from 'src/interfaces/video-repository-data-source';
+import { VideoStorageProvider } from 'src/interfaces/video-storage-provider';
+import { VideoProcessingPublisher } from 'src/interfaces/video-processing-publisher';
+
+import { VideoGatewayImpl } from '../gateway/video-gateway-impl';
 
 import { UploadVideos } from '../../application/usecases/upload-videos';
 import { ListUserVideos } from '../../application/usecases/list-user-videos';
@@ -8,14 +12,25 @@ import { GetProcessedVideo } from '../../application/usecases/get-processed-vide
 import { UploadVideosPresenter } from '../presenters/upload-videos.presenter';
 import { ListVideosPresenter } from '../presenters/list-videos.presenter';
 import { DownloadProcessedZipPresenter } from '../presenters/download-processed-zip.presenter';
-import { UserContextProps } from '../../domain/entities/user-context';
-import { VideoStatus } from 'src/domain/enums/video-status';
+
+import type { UserProps } from '../../domain/entities/user-context';
+import type { AppLogger } from 'src/application/ports/app-logger';
+import type { VideoStatus } from 'src/domain/enums/video-status';
 
 export class VideoController {
-  constructor(private readonly ds: VideoDataSource) {}
+  constructor(
+    private readonly videoRepositoryDataSource: VideoRepositoryDataSource,
+    private readonly videoStorageProvider: VideoStorageProvider,
+    private readonly videoProcessingPublisher: VideoProcessingPublisher,
+    private readonly cfg: {
+      inputBucket: string;
+      outputBucket: string;
+    },
+    private readonly logger: AppLogger,
+  ) {}
 
   async upload(
-    user: UserContextProps,
+    user: UserProps,
     files: Array<{
       originalFileName: string;
       contentType: string;
@@ -28,34 +43,53 @@ export class VideoController {
       size: number;
     }) => void,
   ) {
-    const usecase = new UploadVideos(
-      this.ds.gateway,
+    const gateway = new VideoGatewayImpl(
+      this.videoRepositoryDataSource,
+      this.videoStorageProvider,
+      this.videoProcessingPublisher,
+    );
+
+    const uploadVideos = new UploadVideos(
+      gateway,
       {
-        inputBucket: this.ds.config.inputBucket,
-        outputBucket: this.ds.config.outputBucket,
+        inputBucket: this.cfg.inputBucket,
+        outputBucket: this.cfg.outputBucket,
       },
-      this.ds.logger,
+      this.logger,
     );
 
-    const out = await usecase.execute({ user, files, validate });
-    return UploadVideosPresenter.toJSON(out.items);
+    const output = await uploadVideos.execute({ user, files, validate });
+    return UploadVideosPresenter.toJSON(output.items);
   }
 
-  async list(user: UserContextProps) {
-    const usecase = new ListUserVideos(this.ds.gateway, this.ds.logger);
-    const out = await usecase.execute(user);
-    return ListVideosPresenter.toJSON(out.videos);
-  }
-
-  async downloadProcessedZip(user: UserContextProps, videoId: string) {
-    const usecase = new GetProcessedVideo(
-      this.ds.gateway,
-      this.ds.config.outputBucket,
-      this.ds.logger,
+  async list(user: UserProps) {
+    const gateway = new VideoGatewayImpl(
+      this.videoRepositoryDataSource,
+      this.videoStorageProvider,
+      this.videoProcessingPublisher,
     );
 
-    const out = await usecase.execute({ user, videoId });
-    return DownloadProcessedZipPresenter.toJSON(out);
+    const listUserVideos = new ListUserVideos(gateway, this.logger);
+    const output = await listUserVideos.execute(user);
+
+    return ListVideosPresenter.toJSON(output.videos);
+  }
+
+  async downloadProcessedZip(user: UserProps, videoId: string) {
+    const gateway = new VideoGatewayImpl(
+      this.videoRepositoryDataSource,
+      this.videoStorageProvider,
+      this.videoProcessingPublisher,
+    );
+
+    const getProcessedVideo = new GetProcessedVideo(
+      gateway,
+      this.cfg.outputBucket,
+      this.logger,
+    );
+
+    const output = await getProcessedVideo.execute({ user, videoId });
+    return DownloadProcessedZipPresenter.toJSON(output);
   }
 
   async updateStatusFromEvent(input: {
@@ -63,7 +97,13 @@ export class VideoController {
     status: VideoStatus;
     errorMessage?: string;
   }) {
-    const usecase = new UpdateVideoStatus(this.ds.gateway, this.ds.logger);
-    return usecase.execute(input);
+    const gateway = new VideoGatewayImpl(
+      this.videoRepositoryDataSource,
+      this.videoStorageProvider,
+      this.videoProcessingPublisher,
+    );
+
+    const updateVideoStatus = new UpdateVideoStatus(gateway, this.logger);
+    return updateVideoStatus.execute(input);
   }
 }

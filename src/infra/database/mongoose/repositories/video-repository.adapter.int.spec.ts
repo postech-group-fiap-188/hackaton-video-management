@@ -1,29 +1,28 @@
 import { MongooseVideoRepositoryAdapter } from './video-repository.adapter';
 import type { Model } from 'mongoose';
-import { UserContext } from 'src/domain/entities/user-context';
-import { VideoStatus } from 'src/domain/enums/video-status';
+import type {
+  VideoRecord,
+  VideoStatusRecord,
+} from 'src/interfaces/video-repository-data-source';
 
-type VideoLean = {
-  id: string;
-  userId: string;
-  inputBucket: string;
-  inputKey: string;
-  originalFileName: string;
-  contentType: string;
-  size: number;
-  status: 'PENDING' | 'SUCCEEDED' | 'ERROR';
-  errorMessage?: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
+describe('MongooseVideoRepositoryAdapter', () => {
+  let model: any;
+  let repo: MongooseVideoRepositoryAdapter;
 
-function makeLean(overrides: Partial<VideoLean> = {}): VideoLean {
-  const now = new Date('2026-01-01T00:00:00.000Z');
-  return {
+  const createMock = jest.fn();
+  const findMock = jest.fn();
+  const sortMock = jest.fn();
+  const leanMock = jest.fn();
+  const findOneMock = jest.fn();
+  const updateOneMock = jest.fn();
+
+  const now = new Date('2026-01-30T12:00:00.000Z');
+
+  const makeRecord = (overrides: Partial<VideoRecord> = {}): VideoRecord => ({
     id: overrides.id ?? 'v1',
     userId: overrides.userId ?? 'u1',
     inputBucket: overrides.inputBucket ?? 'in-bucket',
-    inputKey: overrides.inputKey ?? 'in-key',
+    inputKey: overrides.inputKey ?? 'u1-v1-source.mp4',
     originalFileName: overrides.originalFileName ?? 'video.mp4',
     contentType: overrides.contentType ?? 'video/mp4',
     size: overrides.size ?? 123,
@@ -31,148 +30,113 @@ function makeLean(overrides: Partial<VideoLean> = {}): VideoLean {
     errorMessage: overrides.errorMessage,
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
-  };
-}
-
-const makeUser = (id = 'u1') => UserContext.create({ id });
-
-describe('MongooseVideoRepositoryAdapter', () => {
-  const createMock = jest.fn();
-  const findMock = jest.fn();
-  const findOneMock = jest.fn();
-  const updateOneMock = jest.fn();
-
-  const sortMock = jest.fn();
-  const leanMock = jest.fn();
-
-  let model: Partial<Model<any>>;
-  let repo: MongooseVideoRepositoryAdapter;
+  });
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
 
-    leanMock.mockReset();
     sortMock.mockReset().mockReturnValue({ lean: leanMock });
-
     findMock.mockReset().mockReturnValue({ sort: sortMock });
+    findOneMock.mockReset().mockReturnValue({ lean: leanMock });
 
     model = {
       create: createMock,
-      find: findMock as any,
-      findOne: findOneMock as any,
-      updateOne: updateOneMock as any,
+      find: findMock,
+      findOne: findOneMock,
+      updateOne: updateOneMock,
     };
 
-    repo = new MongooseVideoRepositoryAdapter(model as Model<any>);
+    repo = new MongooseVideoRepositoryAdapter(model as unknown as Model<any>);
   });
 
-  it('createPending: cria doc com status PENDING + userId (do VO) e retorna domínio com user VO', async () => {
-    const lean = makeLean({ status: VideoStatus.PENDING });
-
-    const toObject = jest.fn().mockReturnValue(lean);
-    createMock.mockResolvedValue({ toObject });
-
-    const result = await repo.createPending({
+  it('createPending: cria doc com status PENDING e retorna VideoRecord', async () => {
+    const input: Omit<VideoRecord, 'status'> = {
       id: 'v1',
-      user: makeUser('u1'),
+      userId: 'u1',
       inputBucket: 'in-bucket',
-      inputKey: 'in-key',
+      inputKey: 'u1-v1-source.mp4',
       originalFileName: 'video.mp4',
       contentType: 'video/mp4',
       size: 123,
       errorMessage: undefined,
-      createdAt: lean.createdAt,
-      updatedAt: lean.updatedAt,
-    } as any);
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    expect(createMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'v1',
-        userId: 'u1',
-        status: VideoStatus.PENDING,
-      }),
-    );
-    expect(toObject).toHaveBeenCalled();
+    createMock.mockResolvedValueOnce({
+      toObject: () => ({ ...input, status: 'PENDING' as VideoStatusRecord }),
+    });
 
-    expect(result.id).toBe('v1');
-    expect(result.user.id).toBe('u1');
+    const result = await repo.createVideoMetaData(input);
+
+    expect(createMock).toHaveBeenCalledWith({ ...input, status: 'PENDING' });
+    expect(result.userId).toBe('u1');
     expect(result.status).toBe('PENDING');
-    expect(result.inputBucket).toBe('in-bucket');
-    expect(result.inputKey).toBe('in-key');
   });
 
-  it('listByUserId: busca, ordena e mapeia para domínio com user VO', async () => {
-    const docs = [makeLean({ id: 'v1' }), makeLean({ id: 'v2' })];
-    leanMock.mockResolvedValue(docs);
+  it('listByUserId: retorna lista ordenada por createdAt desc', async () => {
+    const docs = [makeRecord({ id: 'v1' }), makeRecord({ id: 'v2' })];
+
+    leanMock.mockResolvedValueOnce(docs);
 
     const result = await repo.listByUserId('u1');
 
     expect(findMock).toHaveBeenCalledWith({ userId: 'u1' });
     expect(sortMock).toHaveBeenCalledWith({ createdAt: -1 });
-    expect(leanMock).toHaveBeenCalled();
 
     expect(result).toHaveLength(2);
-    expect(result[0].id).toBe('v1');
-    expect(result[0].user.id).toBe('u1');
-    expect(result[1].id).toBe('v2');
-    expect(result[1].user.id).toBe('u1');
+    expect(result[0].userId).toBe('u1');
+    expect(result[1].userId).toBe('u1');
   });
 
-  it('findById: retorna domínio quando encontrar (branch doc true)', async () => {
-    const found = makeLean({ id: 'v1', userId: 'u1' });
-
-    const lean = jest.fn().mockResolvedValue(found);
-    findOneMock.mockReturnValue({ lean });
+  it('findById: retorna null quando não existe', async () => {
+    leanMock.mockResolvedValueOnce(null);
 
     const result = await repo.findById('v1');
 
     expect(findOneMock).toHaveBeenCalledWith({ id: 'v1' });
-    expect(lean).toHaveBeenCalled();
-
-    expect(result).not.toBeNull();
-    expect(result!.id).toBe('v1');
-    expect(result!.user.id).toBe('u1');
-  });
-
-  it('findById: retorna null quando não encontrar (branch doc false)', async () => {
-    const lean = jest.fn().mockResolvedValue(null);
-    findOneMock.mockReturnValue({ lean });
-
-    const result = await repo.findById('missing');
-
-    expect(findOneMock).toHaveBeenCalledWith({ id: 'missing' });
-    expect(lean).toHaveBeenCalled();
-
     expect(result).toBeNull();
   });
 
-  it('updateStatus: retorna true quando matchedCount === 1', async () => {
-    updateOneMock.mockResolvedValue({ matchedCount: 1 });
+  it('findById: retorna VideoRecord quando existe', async () => {
+    const doc = makeRecord({ id: 'v1' });
+    leanMock.mockResolvedValueOnce(doc);
+
+    const result = await repo.findById('v1');
+
+    expect(findOneMock).toHaveBeenCalledWith({ id: 'v1' });
+    expect(result?.id).toBe('v1');
+    expect(result?.userId).toBe('u1');
+  });
+
+  it('updateStatus: retorna true quando encontrou e atualizou', async () => {
+    updateOneMock.mockResolvedValueOnce({ matchedCount: 1 });
 
     const ok = await repo.updateStatus({
       videoId: 'v1',
-      status: VideoStatus.SUCCEEDED,
+      status: 'SUCCEEDED',
+      errorMessage: undefined,
     });
 
     expect(updateOneMock).toHaveBeenCalledWith(
       { id: 'v1' },
-      { $set: { status: VideoStatus.SUCCEEDED, errorMessage: undefined } },
+      { $set: { status: 'SUCCEEDED', errorMessage: undefined } },
     );
     expect(ok).toBe(true);
   });
 
-  it('updateStatus: retorna false quando matchedCount !== 1', async () => {
-    updateOneMock.mockResolvedValue({ matchedCount: 0 });
+  it('updateStatus: retorna false quando não encontrou', async () => {
+    updateOneMock.mockResolvedValueOnce({ matchedCount: 0 });
 
     const ok = await repo.updateStatus({
       videoId: 'v1',
-      status: VideoStatus.ERROR,
+      status: 'ERROR',
       errorMessage: 'boom',
     });
 
     expect(updateOneMock).toHaveBeenCalledWith(
       { id: 'v1' },
-      { $set: { status: VideoStatus.ERROR, errorMessage: 'boom' } },
+      { $set: { status: 'ERROR', errorMessage: 'boom' } },
     );
     expect(ok).toBe(false);
   });

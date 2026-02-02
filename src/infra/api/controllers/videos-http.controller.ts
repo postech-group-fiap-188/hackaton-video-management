@@ -12,8 +12,8 @@ import {
 import type { Request } from 'express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   ApiBody,
@@ -23,19 +23,33 @@ import {
   ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 
 import { VideoController } from 'src/adapters/controllers/video-controller';
-import type { VideoDataSource } from 'src/interfaces/video-data-source';
-import { VIDEO_DATA_SOURCE } from 'src/interfaces/video-data-source.token';
-import { AppError } from 'src/application/errors/app-error';
-import type { UserContextProps } from 'src/domain/entities/user-context';
+
+import type { UserProps } from 'src/domain/entities/user-context';
+import type { VideoStatus } from 'src/domain/enums/video-status';
+
+import { VideoRepositoryDataSource } from 'src/interfaces/video-repository-data-source';
+import { VideoStorageProvider } from 'src/interfaces/video-storage-provider';
+import { VideoProcessingPublisher } from 'src/interfaces/video-processing-publisher';
+
+import type { UploadResultItem } from 'src/application/usecases/upload-videos';
+
+import { AppLoggerService } from '../common/logger/app-logger.service';
 import { ApiUserHeaders } from '../dtos/api-header.dto';
 
-import { UploadVideosResponseDto } from '../dtos/upload-videos-response.dto';
+import {
+  ListAllVideosResponseDto,
+  MyVideoItemResponseDto,
+} from '../dtos/list-videos-response.dto';
+import {
+  UploadVideosResponseDto,
+  UploadVideoItemResponseDto,
+} from '../dtos/upload-videos-response.dto';
 import { GetProcessedZipResponseDto } from '../dtos/get-processed-zip-response.dto';
-import { ListAllVideosResponseDto } from '../dtos/list-videos-response.dto';
-
-type ParsedUserContextProps = Omit<UserContextProps, 'id'> & { id?: string };
+import { VideoStatusDto } from '../dtos/video-status.dto';
+import { AppError } from 'src/domain/errors/app-error';
 
 @ApiTags('videos')
 @ApiSecurity('x-user-id')
@@ -44,8 +58,35 @@ type ParsedUserContextProps = Omit<UserContextProps, 'id'> & { id?: string };
 export class VideosHttpController {
   private readonly controller: VideoController;
 
-  constructor(@Inject(VIDEO_DATA_SOURCE) private readonly ds: VideoDataSource) {
-    this.controller = new VideoController(ds);
+  constructor(
+    @Inject(VideoRepositoryDataSource)
+    private readonly videoRepositoryDataSource: VideoRepositoryDataSource,
+
+    @Inject(VideoStorageProvider)
+    private readonly videoStorageProvider: VideoStorageProvider,
+
+    @Inject(VideoProcessingPublisher)
+    private readonly videoProcessingPublisher: VideoProcessingPublisher,
+
+    private readonly config: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
+    this.controller = new VideoController(
+      this.videoRepositoryDataSource,
+      this.videoStorageProvider,
+      this.videoProcessingPublisher,
+      {
+        inputBucket: must(
+          this.config.get<string>('S3_INPUT_BUCKET_NAME'),
+          'S3_INPUT_BUCKET_NAME',
+        ),
+        outputBucket: must(
+          this.config.get<string>('S3_OUTPUT_BUCKET_NAME'),
+          'S3_OUTPUT_BUCKET_NAME',
+        ),
+      },
+      this.logger,
+    );
   }
 
   @Post('videos/upload')
@@ -72,7 +113,7 @@ export class VideosHttpController {
         filename: (_req, file, cb) => {
           const safe = file.originalname
             .normalize('NFC')
-            .replace(/[^\p{L}\p{N}._\-()]+/gu, '_');
+            .replaceAll(/[^\p{L}\p{N}._\-()]+/gu, '_');
           cb(null, `${Date.now()}-${safe}`);
         },
       }),
@@ -81,14 +122,13 @@ export class VideosHttpController {
   )
   async upload(
     @Req() req: Request,
-    /* c8 ignore next */
-    @UploadedFiles() files: Array<Express.Multer.File>,
+    @UploadedFiles() files: Express.Multer.File[],
   ): Promise<UploadVideosResponseDto> {
     const user = getUserPropsFromHeaders(req);
 
-    if (!files || files.length === 0) {
-      throw new BadRequestException('videos is required');
-    }
+    if (!files?.length) throw new BadRequestException('Missing videos');
+
+    const maxBytes = Number(process.env.MAX_VIDEO_BYTES ?? 1024 * 1024 * 50);
 
     const mapped = files.map((f) => ({
       originalFileName: f.originalname,
@@ -97,19 +137,32 @@ export class VideosHttpController {
       tempFilePath: f.path,
     }));
 
-    return (await this.controller.upload(user, mapped, (m) =>
-      validateVideo(m, this.ds.config.maxVideoBytes),
-    )) as unknown as UploadVideosResponseDto;
+    const outUnknown: unknown = await this.controller.upload(
+      user,
+      mapped,
+      (m) => validateVideo(m, maxBytes),
+    );
+
+    const out = outUnknown as { items: UploadResultItem[] };
+
+    return toUploadVideosResponseDto(out.items);
   }
 
-  @Get('users/me/videos')
+  @Get('videos')
   @ApiUserHeaders()
   @ApiOkResponse({ type: ListAllVideosResponseDto })
   async list(@Req() req: Request): Promise<ListAllVideosResponseDto> {
     const user = getUserPropsFromHeaders(req);
-    return (await this.controller.list(
-      user,
-    )) as unknown as ListAllVideosResponseDto;
+
+    const outUnknown: unknown = await this.controller.list(user);
+    const out = outUnknown as ListAllVideosResponseDto;
+
+    const items: MyVideoItemResponseDto[] = out.items.map((i) => ({
+      ...i,
+      status: toVideoStatusDto(String(i.status)),
+    }));
+
+    return { items };
   }
 
   @Get('videos/:videoId/processed-zip')
@@ -121,67 +174,86 @@ export class VideosHttpController {
     @Param('videoId') videoId: string,
   ): Promise<GetProcessedZipResponseDto> {
     const user = getUserPropsFromHeaders(req);
-    return (await this.controller.downloadProcessedZip(
+
+    const outUnknown: unknown = await this.controller.downloadProcessedZip(
       user,
       videoId,
-    )) as unknown as GetProcessedZipResponseDto;
+    );
+
+    const out = outUnknown as GetProcessedZipResponseDto;
+
+    return {
+      downloadUrl: out.downloadUrl,
+      bucket: out.bucket,
+      key: out.key,
+    };
   }
 }
 
-function getUserPropsFromHeaders(req: Request): UserContextProps {
-  const headers = req.headers as Record<string, unknown>;
-  const parsed = parseXUserHeaders(headers);
+function must(v: string | undefined, name: string): string {
+  if (!v) throw new Error(`Missing env var: ${name}`);
+  return v;
+}
 
-  const id = (parsed.id ?? '').trim();
-  if (!id) throw new BadRequestException('Missing user');
+function toVideoStatusDto(status: string | VideoStatus): VideoStatusDto {
+  return status as unknown as VideoStatusDto;
+}
+
+type UploadOkItem = Extract<UploadResultItem, { ok: true }>;
+
+function isUploadOkItem(i: UploadResultItem): i is UploadOkItem {
+  return i.ok === true;
+}
+
+function toUploadVideosResponseDto(
+  items: UploadResultItem[],
+): UploadVideosResponseDto {
+  const okItems: UploadOkItem[] = items.filter(isUploadOkItem);
+
+  const mapped: UploadVideoItemResponseDto[] = okItems.map((i) => ({
+    ok: true,
+    videoId: i.videoId,
+    inputKey: i.inputKey,
+    outputZipKey: i.outputZipKey,
+    status: toVideoStatusDto(i.status),
+  }));
+
+  return { items: mapped };
+}
+
+function getUserPropsFromHeaders(req: Request): UserProps {
+  const parsed = parseXUserHeaders(req.headers as Record<string, unknown>);
+  if (!parsed.id) throw new BadRequestException('Missing user');
 
   return {
-    id,
+    id: parsed.id,
     email: parsed.email,
     attributes: parsed.attributes,
   };
 }
 
-function getHeaderString(
-  headers: Record<string, unknown>,
-  name: string,
-): string | undefined {
-  const v = headers[name];
-  if (typeof v === 'string') return v.trim() || undefined;
-  if (Array.isArray(v) && typeof v[0] === 'string')
-    return v[0].trim() || undefined;
-  return undefined;
-}
+type ParsedUserProps = Omit<UserProps, 'id'> & { id?: string };
 
-function parseXUserHeaders(
-  headers: Record<string, unknown>,
-): ParsedUserContextProps {
+function parseXUserHeaders(headers: Record<string, unknown>): ParsedUserProps {
   const lower: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(headers)) lower[k.toLowerCase()] = v;
 
-  const id = getHeaderString(lower, 'x-user-id');
-  const email = getHeaderString(lower, 'x-user-email');
+  const id = readStringHeader(lower, 'x-user-id');
+  const email = readStringHeader(lower, 'x-user-email');
 
   const attributes: Record<string, string> = {};
 
   for (const [k, v] of Object.entries(lower)) {
     if (!k.startsWith('x-user-')) continue;
+    if (k === 'x-user-id' || k === 'x-user-email') continue;
+    if (typeof v !== 'string') continue;
 
-    const suffix = k.slice('x-user-'.length).trim();
-    if (!suffix) continue;
-    if (suffix === 'id' || suffix === 'email') continue;
+    const key = k.slice('x-user-'.length);
+    const value = v.trim();
 
-    const value =
-      typeof v === 'string'
-        ? v
-        : Array.isArray(v) && typeof v[0] === 'string'
-          ? v[0]
-          : undefined;
+    if (!key || !value) continue;
 
-    const cleaned = (value ?? '').trim();
-    if (!cleaned) continue;
-
-    attributes[suffix] = cleaned;
+    attributes[key] = value;
   }
 
   return {
@@ -189,6 +261,17 @@ function parseXUserHeaders(
     email,
     attributes: Object.keys(attributes).length ? attributes : undefined,
   };
+}
+
+function readStringHeader(
+  headers: Record<string, unknown>,
+  name: string,
+): string | undefined {
+  const v = headers[name];
+  if (typeof v !== 'string') return undefined;
+
+  const value = v.trim();
+  return value;
 }
 
 function validateVideo(

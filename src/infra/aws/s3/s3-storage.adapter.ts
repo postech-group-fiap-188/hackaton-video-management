@@ -4,12 +4,14 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
+import { VideoStorageProvider } from 'src/interfaces/video-storage-provider';
 
 @Injectable()
-export class S3StorageAdapter {
+export class S3StorageAdapter extends VideoStorageProvider {
   private readonly client: S3Client;
 
   constructor(config: ConfigService) {
+    super();
     const region = config.get<string>('AWS_REGION') ?? 'us-east-1';
     const endpoint = config.get<string>('AWS_ENDPOINT_URL') ?? undefined;
 

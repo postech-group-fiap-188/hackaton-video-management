@@ -11,7 +11,7 @@ jest.mock('@aws-sdk/client-sns', () => ({
 }));
 
 
-function makeUserContext(id = 'u', email = 'u@mail.com') {
+function makeUser(id = 'u', email = 'u@mail.com') {
   return {
     props: { id, email },
     sub: id,
@@ -54,7 +54,7 @@ describe('SnsVideoProcessingAdapter', () => {
 
     const event = {
       videoId: 'v',
-      user: makeUserContext('u', 'u@mail.com'),
+      user: makeUser('u', 'u@mail.com'),
       inputBucket: 'in-b',
       inputKey: 'in-k',
       outputBucket: 'out-b',
@@ -87,7 +87,7 @@ describe('SnsVideoProcessingAdapter', () => {
 
     const event = {
       videoId: 'v',
-      user: makeUserContext('u'),
+      user: makeUser('u'),
       inputBucket: 'b',
       inputKey: 'k',
       outputBucket: 'ob',

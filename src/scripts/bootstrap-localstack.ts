@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     credentials: { accessKeyId, secretAccessKey },
   });
 
-  await ensureQueue(sqs, 'video-status-queue');
+  await ensureQueue(sqs, 'statusproccessing');
   await ensureBucket(s3, must('S3_INPUT_BUCKET_NAME'));
   await ensureBucket(s3, must('S3_OUTPUT_BUCKET_NAME'));
 }

@@ -24,7 +24,7 @@ Também lista vídeos do usuário, atualiza status via evento (fila SQS) e gera 
 docker-compose.yml
 docker-compose.debug.yml
 Dockerfile
-app/
+
 ├── .env.docker
 ├── docker/
 │ ├── entrypoint.sh
@@ -226,7 +226,7 @@ cd app
 npm run test:int
 ```
 
-## 👨‍💻 Autores
+## Autores
 
 - Douglas Vinicius Caldas Bonin (<https://github.com/dviniciusbonin>)
 - Layssa Hillary (<https://github.com/layssahillary>)

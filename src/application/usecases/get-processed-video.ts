@@ -1,12 +1,9 @@
 import type { AppLogger } from 'src/application/ports/app-logger';
-import { AppError } from '../errors/app-error';
+import { AppError } from '../../domain/errors/app-error';
 import type { VideoGateway } from '../gateways/video-gateway';
 
 import { VideoStatus } from 'src/domain/enums/video-status';
-import {
-  UserContext,
-  UserContextProps,
-} from 'src/domain/entities/user-context';
+import { User, UserProps } from 'src/domain/entities/user-context';
 
 export class GetProcessedVideo {
   constructor(
@@ -15,8 +12,8 @@ export class GetProcessedVideo {
     private readonly logger: AppLogger,
   ) {}
 
-  async execute(input: { user: UserContextProps; videoId: string }) {
-    const user = UserContext.create(input.user);
+  async execute(input: { user: UserProps; videoId: string }) {
+    const user = User.create(input.user);
 
     this.logger.info('get_processed_video.start', {
       userId: user.id,

@@ -3,10 +3,8 @@ import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { VideoGateway } from '../gateways/video-gateway';
-import {
-  UserContext,
-  UserContextProps,
-} from 'src/domain/entities/user-context';
+import { User, UserProps } from 'src/domain/entities/user-context';
+import { Video } from 'src/domain/entities/video';
 import type { AppLogger } from 'src/application/ports/app-logger';
 import { VideoStatus } from 'src/domain/enums/video-status';
 
@@ -37,7 +35,7 @@ export class UploadVideos {
   ) {}
 
   async execute(input: {
-    user: UserContextProps;
+    user: UserProps;
     files: Array<{
       originalFileName: string;
       contentType: string;
@@ -50,7 +48,7 @@ export class UploadVideos {
       size: number;
     }) => void;
   }): Promise<{ items: UploadResultItem[] }> {
-    const user = UserContext.create(input.user);
+    const user = User.create(input.user);
 
     this.logger.info('upload_videos.execute.start', {
       userId: user.id,
@@ -81,7 +79,7 @@ export class UploadVideos {
   }
 
   private async processOne(input: {
-    user: UserContext;
+    user: User;
     file: {
       originalFileName: string;
       contentType: string;
@@ -125,18 +123,21 @@ export class UploadVideos {
       const inputKey = `${user.id}-${videoId}-source${ext}`;
       const outputZipKey = `${user.id}-${videoId}-processed.zip`;
 
-      await this.gateway.createPending({
-        id: videoId,
+      const pending = new Video(
         user,
-        inputBucket: this.cfg.inputBucket,
+        this.cfg.inputBucket,
         inputKey,
-        originalFileName: f.originalFileName,
-        contentType: f.contentType,
-        size: f.size,
-        errorMessage: undefined,
-        createdAt: input.now,
-        updatedAt: input.now,
-      });
+        f.originalFileName,
+        f.contentType,
+        f.size,
+        VideoStatus.PENDING,
+        undefined,
+        input.now,
+        input.now,
+        videoId,
+      );
+
+      await this.gateway.createVideoMetaData(pending);
 
       createdPending = true;
 
@@ -195,7 +196,7 @@ export class UploadVideos {
         outputZipKey,
         status: VideoStatus.PENDING,
       } as const;
-    } catch (e: unknown) {
+    } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'upload_failed';
 
       this.logger.error('upload_videos.process_one.failed', {
@@ -220,19 +221,17 @@ export class UploadVideos {
             videoId,
             errorMessage,
           });
-        } catch (updateErr: unknown) {
+        } catch (error) {
           const updateErrMsg =
-            updateErr instanceof Error
-              ? updateErr.message
-              : 'update_status_failed';
+            error instanceof Error ? error.message : 'update_status_failed';
 
           this.logger.error('upload_videos.update_status.failed', {
             userId: user.id,
             videoId,
             errorMessage,
             updateErrorMessage: updateErrMsg,
-            ...(updateErr instanceof Error && updateErr.stack
-              ? { updateStack: updateErr.stack }
+            ...(error instanceof Error && error.stack
+              ? { updateStack: error.stack }
               : {}),
           });
         }
@@ -260,17 +259,17 @@ export class UploadVideos {
           videoId,
           tempFilePath: f.tempFilePath,
         });
-      } catch (unlinkErr: unknown) {
+      } catch (error) {
         const unlinkErrMsg =
-          unlinkErr instanceof Error ? unlinkErr.message : 'unlink_failed';
+          error instanceof Error ? error.message : 'unlink_failed';
 
         this.logger.warn('upload_videos.temp_file.delete_failed', {
           userId: user.id,
           videoId,
           tempFilePath: f.tempFilePath,
           unlinkErrorMessage: unlinkErrMsg,
-          ...(unlinkErr instanceof Error && unlinkErr.stack
-            ? { unlinkStack: unlinkErr.stack }
+          ...(error instanceof Error && error.stack
+            ? { unlinkStack: error.stack }
             : {}),
         });
       }

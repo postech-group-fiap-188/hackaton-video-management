@@ -1,26 +1,26 @@
-export type UserContextProps = {
+export type UserProps = {
   id: string;
   email?: string;
   attributes?: Record<string, string | undefined>;
 };
 
-export class UserContext {
-  private readonly props: UserContextProps;
+export class User {
+  private readonly props: UserProps;
 
-  private constructor(props: UserContextProps) {
+  private constructor(props: UserProps) {
     this.props = Object.freeze({
       ...props,
       attributes: Object.freeze({ ...(props.attributes ?? {}) }),
     });
   }
 
-  static create(props: UserContextProps): UserContext {
+  static create(props: UserProps): User {
     const id = (props?.id ?? '').trim();
-    if (!id) throw new Error('UserContext: missing id');
+    if (!id) throw new Error('User: missing id');
 
     const email = props.email?.trim() || undefined;
 
-    return new UserContext({
+    return new User({
       ...props,
       id,
       email,
@@ -40,7 +40,7 @@ export class UserContext {
     return this.props.attributes?.[key];
   }
 
-  toProps(): UserContextProps {
+  toProps(): UserProps {
     return {
       id: this.props.id,
       email: this.props.email,
@@ -48,7 +48,7 @@ export class UserContext {
     };
   }
 
-  equals(other?: UserContext): boolean {
+  equals(other?: User): boolean {
     if (!other) return false;
     return this.id === other.id;
   }

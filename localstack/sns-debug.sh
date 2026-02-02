@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REGION="${AWS_REGION:-us-east-1}"
-TOPIC_NAME="${SNS_TOPIC_NAME:-video-processing-topic}"
+TOPIC_NAME="${SNS_TOPIC_NAME:-video-events}"
 DEBUG_QUEUE_NAME="${SQS_DEBUG_QUEUE_NAME:-video-processing-debug-queue}"
 
 AWS="awslocal"

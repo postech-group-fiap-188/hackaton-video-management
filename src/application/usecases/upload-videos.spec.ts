@@ -1,404 +1,452 @@
+jest.mock('node:crypto', () => ({ randomUUID: jest.fn() }));
+jest.mock('node:fs/promises', () => ({ unlink: jest.fn() }));
+
+import { randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
+
 import { UploadVideos } from './upload-videos';
-import type { VideoGateway } from '../gateways/video-gateway';
 import { VideoStatus } from 'src/domain/enums/video-status';
+import type { VideoGateway } from '../gateways/video-gateway';
 
-jest.mock('fs/promises', () => ({
-  unlink: jest.fn(),
-}));
-
-type LoggerMock = {
-  info: jest.Mock<void, [string, Record<string, unknown>?]>;
-  warn: jest.Mock<void, [string, Record<string, unknown>?]>;
-  error: jest.Mock<void, [string, Record<string, unknown>?]>;
+type GatewayMock = {
+  createVideoMetaData: jest.Mock;
+  uploadMultipartFromPath: jest.Mock;
+  publishProcessingEvent: jest.Mock;
+  updateStatus: jest.Mock;
 };
 
-const makeLogger = (): LoggerMock => ({
+const makeGateway = (): GatewayMock => ({
+  createVideoMetaData: jest.fn(),
+  uploadMultipartFromPath: jest.fn(),
+  publishProcessingEvent: jest.fn(),
+  updateStatus: jest.fn(),
+});
+
+const makeLogger = () => ({
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
 });
 
-const cfg = { inputBucket: 'in-bucket', outputBucket: 'out-bucket' };
-
-const makeGateway = (): jest.Mocked<VideoGateway> =>
-  ({
-    createPending: jest.fn().mockResolvedValue(undefined as any),
-    uploadMultipartFromPath: jest.fn().mockResolvedValue(undefined),
-    publishProcessingEvent: jest.fn().mockResolvedValue(undefined),
-    updateStatus: jest.fn().mockResolvedValue(true),
-    presignGetObject: jest.fn(),
-    findById: jest.fn(),
-    listByUserId: jest.fn(),
-  }) as unknown as jest.Mocked<VideoGateway>;
-
-describe('UploadVideos', () => {
-  const user = { id: 'user-1', email: 'u@x.com' };
+describe('UploadVideos (100% coverage)', () => {
+  const randomUUIDMock = randomUUID as unknown as jest.Mock;
+  const unlinkMock = unlink as unknown as jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (unlink as unknown as jest.Mock).mockResolvedValue(undefined);
   });
 
-  test('returns error when validate throws (no updateStatus; logs skipped)', async () => {
+  it('execute: processa arquivos, retorna itens e loga contadores ok/error', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
 
-    const validate = jest.fn(() => {
-      throw new Error('invalid_file');
+    randomUUIDMock.mockReturnValueOnce('v1').mockReturnValueOnce('v2');
+    unlinkMock.mockResolvedValue(undefined);
+
+    gateway.createVideoMetaData.mockResolvedValue(undefined);
+    gateway.uploadMultipartFromPath.mockResolvedValue(undefined);
+    gateway.publishProcessingEvent.mockResolvedValue(undefined);
+
+    const usecase = new UploadVideos(
+      gateway as unknown as VideoGateway,
+      { inputBucket: 'in-bucket', outputBucket: 'out-bucket' },
+      logger as any,
+    );
+
+    const validate = jest.fn((m: any) => {
+      if (m.originalFileName === 'bad.mp4') throw new Error('bad');
     });
 
     const res = await usecase.execute({
-      user,
+      user: {
+        id: 'u1',
+        email: 'u1@mail.com',
+        attributes: { 'is-admin': 'true' },
+      } as any,
       files: [
         {
           originalFileName: 'video.mp4',
           contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-1',
+          size: 10,
+          tempFilePath: '/tmp/a.mp4',
+        },
+        {
+          originalFileName: 'bad.mp4',
+          contentType: 'video/mp4',
+          size: 10,
+          tempFilePath: '/tmp/b.mp4',
         },
       ],
       validate,
     });
 
-    expect(res.items).toHaveLength(1);
+    expect(res.items).toHaveLength(2);
 
-    const item = res.items[0];
-    expect(item.ok).toBe(false);
-    if (!item.ok) {
-      expect(item.originalFileName).toBe('video.mp4');
-      expect(item.status).toBe('ERROR');
-      expect(item.errorMessage).toBe('invalid_file');
-      expect(item.videoId).toEqual(expect.any(String));
-    }
+    expect(res.items[0]).toEqual({
+      ok: true,
+      videoId: 'v1',
+      inputKey: 'u1-v1-source.mp4',
+      outputZipKey: 'u1-v1-processed.zip',
+      status: VideoStatus.PENDING,
+    });
 
-    expect(gateway.createPending).not.toHaveBeenCalled();
-    expect(gateway.uploadMultipartFromPath).not.toHaveBeenCalled();
-    expect(gateway.publishProcessingEvent).not.toHaveBeenCalled();
-    expect(gateway.updateStatus).not.toHaveBeenCalled();
+    expect(res.items[1]).toEqual({
+      ok: false,
+      originalFileName: 'bad.mp4',
+      status: VideoStatus.ERROR,
+      errorMessage: 'bad',
+      videoId: 'v2',
+    });
 
-    expect(unlink).toHaveBeenCalledWith('/tmp/file-1');
+    expect(logger.info).toHaveBeenCalledWith(
+      'upload_videos.execute.start',
+      expect.objectContaining({ userId: 'u1', filesCount: 2 }),
+    );
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'upload_videos.execute.done',
+      expect.objectContaining({
+        userId: 'u1',
+        filesCount: 2,
+        okCount: 1,
+        errorCount: 1,
+      }),
+    );
 
     expect(logger.warn).toHaveBeenCalledWith(
       'upload_videos.update_status.skipped',
       expect.objectContaining({
-        userId: 'user-1',
+        userId: 'u1',
+        videoId: 'v2',
         reason: 'pending_not_created',
-        errorMessage: 'invalid_file',
+        errorMessage: 'bad',
+      }),
+    );
+
+    expect(unlinkMock).toHaveBeenCalledTimes(2);
+    expect(validate).toHaveBeenCalledTimes(2);
+  });
+
+  it('validate joga string: retorna upload_failed, pula updateStatus e unlink falha com string', async () => {
+    const gateway = makeGateway();
+    const logger = makeLogger();
+
+    randomUUIDMock.mockReturnValueOnce('v1');
+    unlinkMock.mockRejectedValueOnce('nope');
+
+    const usecase = new UploadVideos(
+      gateway as unknown as VideoGateway,
+      { inputBucket: 'in-bucket', outputBucket: 'out-bucket' },
+      logger as any,
+    );
+
+    const validate = jest.fn(() => {
+      throw 'x';
+    });
+
+    const res = await usecase.execute({
+      user: { id: 'u1', email: 'u1@mail.com', attributes: {} } as any,
+      files: [
+        {
+          originalFileName: 'x.mp4',
+          contentType: 'video/mp4',
+          size: 10,
+          tempFilePath: '/tmp/x.mp4',
+        },
+      ],
+      validate,
+    });
+
+    expect(res).toEqual({
+      items: [
+        {
+          ok: false,
+          originalFileName: 'x.mp4',
+          status: VideoStatus.ERROR,
+          errorMessage: 'upload_failed',
+          videoId: 'v1',
+        },
+      ],
+    });
+
+    expect(gateway.createVideoMetaData).not.toHaveBeenCalled();
+    expect(gateway.updateStatus).not.toHaveBeenCalled();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'upload_videos.update_status.skipped',
+      expect.objectContaining({
+        userId: 'u1',
+        videoId: 'v1',
+        reason: 'pending_not_created',
+        errorMessage: 'upload_failed',
+      }),
+    );
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'upload_videos.temp_file.delete_failed',
+      expect.objectContaining({
+        userId: 'u1',
+        videoId: 'v1',
+        tempFilePath: '/tmp/x.mp4',
+        unlinkErrorMessage: 'unlink_failed',
       }),
     );
   });
 
-  test('if createPending succeeds but upload fails, updateStatus fails -> logs update_status.failed and does not crash', async () => {
+  it('falha depois de criar pending: tenta updateStatus (ok) e unlink falha com Error', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
 
-    gateway.uploadMultipartFromPath.mockRejectedValueOnce(new Error('s3_fail'));
-    gateway.updateStatus.mockRejectedValueOnce(new Error('update_fail'));
+    randomUUIDMock.mockReturnValueOnce('v1');
+    unlinkMock.mockRejectedValueOnce(new Error('UNLINK_FAIL'));
+
+    gateway.createVideoMetaData.mockResolvedValue(undefined);
+    gateway.uploadMultipartFromPath.mockRejectedValueOnce(new Error('S3_FAIL'));
+    gateway.updateStatus.mockResolvedValueOnce(true);
+
+    const usecase = new UploadVideos(
+      gateway as unknown as VideoGateway,
+      { inputBucket: 'in-bucket', outputBucket: 'out-bucket' },
+      logger as any,
+    );
+
+    const validate = jest.fn();
 
     const res = await usecase.execute({
-      user,
+      user: { id: 'u1', email: 'u1@mail.com', attributes: {} } as any,
       files: [
         {
           originalFileName: 'video.mp4',
           contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-1',
+          size: 10,
+          tempFilePath: '/tmp/a.mp4',
         },
       ],
-      validate: jest.fn(),
+      validate,
     });
 
-    expect(res.items).toHaveLength(1);
-    const item = res.items[0];
+    expect(res.items[0]).toEqual({
+      ok: false,
+      originalFileName: 'video.mp4',
+      status: VideoStatus.ERROR,
+      errorMessage: 'S3_FAIL',
+      videoId: 'v1',
+    });
 
-    expect(item.ok).toBe(false);
-    if (!item.ok) {
-      expect(item.errorMessage).toBe('s3_fail');
-      expect(item.videoId).toEqual(expect.any(String));
-    }
+    expect(gateway.updateStatus).toHaveBeenCalledWith({
+      videoId: 'v1',
+      status: VideoStatus.ERROR,
+      errorMessage: 'S3_FAIL',
+    });
 
-    expect(gateway.createPending).toHaveBeenCalledTimes(1);
-
-    expect((gateway.createPending.mock.calls[0][0] as any).user.id).toBe(
-      'user-1',
+    expect(logger.warn).toHaveBeenCalledWith(
+      'upload_videos.update_status.set_error',
+      expect.objectContaining({
+        userId: 'u1',
+        videoId: 'v1',
+        errorMessage: 'S3_FAIL',
+      }),
     );
 
-    expect(gateway.uploadMultipartFromPath).toHaveBeenCalledTimes(1);
-    expect(gateway.publishProcessingEvent).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'upload_videos.temp_file.delete_failed',
+      expect.objectContaining({
+        userId: 'u1',
+        videoId: 'v1',
+        tempFilePath: '/tmp/a.mp4',
+        unlinkErrorMessage: 'UNLINK_FAIL',
+        unlinkStack: expect.any(String),
+      }),
+    );
+  });
 
-    expect(gateway.updateStatus).toHaveBeenCalledTimes(1);
-    expect(gateway.updateStatus).toHaveBeenCalledWith({
-      videoId: expect.any(String),
+  it('falha ao publicar evento: updateStatus falha com Error e loga updateStack', async () => {
+    const gateway = makeGateway();
+    const logger = makeLogger();
+
+    randomUUIDMock.mockReturnValueOnce('v1');
+    unlinkMock.mockResolvedValueOnce(undefined);
+
+    gateway.createVideoMetaData.mockResolvedValue(undefined);
+    gateway.uploadMultipartFromPath.mockResolvedValue(undefined);
+    gateway.publishProcessingEvent.mockRejectedValueOnce(new Error('SNS_FAIL'));
+    gateway.updateStatus.mockRejectedValueOnce(new Error('UPDATE_FAIL'));
+
+    const usecase = new UploadVideos(
+      gateway as unknown as VideoGateway,
+      { inputBucket: 'in-bucket', outputBucket: 'out-bucket' },
+      logger as any,
+    );
+
+    const validate = jest.fn();
+
+    const res = await usecase.execute({
+      user: { id: 'u1', email: 'u1@mail.com', attributes: {} } as any,
+      files: [
+        {
+          originalFileName: 'video.mp4',
+          contentType: 'video/mp4',
+          size: 10,
+          tempFilePath: '/tmp/a.mp4',
+        },
+      ],
+      validate,
+    });
+
+    expect(res.items[0]).toEqual({
+      ok: false,
+      originalFileName: 'video.mp4',
       status: VideoStatus.ERROR,
-      errorMessage: 's3_fail',
+      errorMessage: 'SNS_FAIL',
+      videoId: 'v1',
     });
 
     expect(logger.error).toHaveBeenCalledWith(
       'upload_videos.update_status.failed',
       expect.objectContaining({
-        userId: 'user-1',
-        errorMessage: 's3_fail',
-        updateErrorMessage: 'update_fail',
+        userId: 'u1',
+        videoId: 'v1',
+        errorMessage: 'SNS_FAIL',
+        updateErrorMessage: 'UPDATE_FAIL',
+        updateStack: expect.any(String),
       }),
     );
-
-    expect(unlink).toHaveBeenCalledWith('/tmp/file-1');
-  });
-
-  test('when flow fails AFTER createPending and updateStatus succeeds, it logs update_status.set_error', async () => {
-    const gateway = makeGateway();
-    const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
-
-    gateway.uploadMultipartFromPath.mockRejectedValueOnce(new Error('s3_fail'));
-    gateway.updateStatus.mockResolvedValueOnce(true);
-
-    const res = await usecase.execute({
-      user,
-      files: [
-        {
-          originalFileName: 'video.mp4',
-          contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-1',
-        },
-      ],
-      validate: jest.fn(),
-    });
-
-    expect(res.items[0].ok).toBe(false);
-
-    expect(logger.warn).toHaveBeenCalledWith(
-      'upload_videos.update_status.set_error',
-      expect.objectContaining({
-        userId: 'user-1',
-        videoId: expect.any(String),
-        errorMessage: 's3_fail',
-      }),
-    );
-
-    expect(gateway.createPending).toHaveBeenCalledTimes(1);
-    expect(gateway.updateStatus).toHaveBeenCalledTimes(1);
-  });
-
-  test('logs temp_file.delete_failed when unlink fails (covers unlink catch)', async () => {
-    const gateway = makeGateway();
-    const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
-
-    const validate = jest.fn(() => {
-      throw new Error('invalid_file');
-    });
-
-    (unlink as unknown as jest.Mock).mockRejectedValueOnce(
-      new Error('unlink_fail'),
-    );
-
-    await usecase.execute({
-      user,
-      files: [
-        {
-          originalFileName: 'video.mp4',
-          contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-2',
-        },
-      ],
-      validate,
-    });
-
-    expect(logger.warn).toHaveBeenCalledWith(
-      'upload_videos.temp_file.delete_failed',
-      expect.objectContaining({
-        userId: 'user-1',
-        videoId: expect.any(String),
-        tempFilePath: '/tmp/file-2',
-        unlinkErrorMessage: 'unlink_fail',
-      }),
-    );
-  });
-
-  test('logs temp_file.deleted when unlink succeeds (covers finally success branch / linha do deleted)', async () => {
-    const gateway = makeGateway();
-    const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
-
-    (unlink as unknown as jest.Mock).mockResolvedValueOnce(undefined);
-
-    await usecase.execute({
-      user,
-      files: [
-        {
-          originalFileName: 'video.mp4',
-          contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-success-unlink',
-        },
-      ],
-      validate: jest.fn(() => {
-        throw new Error('invalid_file');
-      }),
-    });
-
-    expect(unlink).toHaveBeenCalledWith('/tmp/file-success-unlink');
 
     expect(logger.info).toHaveBeenCalledWith(
       'upload_videos.temp_file.deleted',
       expect.objectContaining({
-        userId: 'user-1',
-        videoId: expect.any(String),
-        tempFilePath: '/tmp/file-success-unlink',
+        userId: 'u1',
+        videoId: 'v1',
+        tempFilePath: '/tmp/a.mp4',
       }),
     );
   });
 
-  test('happy path logs and returns pending item (and publishes event with user props)', async () => {
+  it('updateStatus falha com valor não-Error: update_status_failed', async () => {
     const gateway = makeGateway();
     const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
 
-    const res = await usecase.execute({
-      user,
-      files: [
-        {
-          originalFileName: 'video.mp4',
-          contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-1',
-        },
-      ],
-      validate: jest.fn(),
-    });
+    randomUUIDMock.mockReturnValueOnce('v1');
+    unlinkMock.mockResolvedValueOnce(undefined);
 
-    expect(res.items).toHaveLength(1);
-    const item = res.items[0];
+    gateway.createVideoMetaData.mockResolvedValue(undefined);
+    gateway.uploadMultipartFromPath.mockRejectedValueOnce(new Error('S3_FAIL'));
+    gateway.updateStatus.mockRejectedValueOnce('nope');
 
-    expect(item.ok).toBe(true);
-    if (item.ok) {
-      expect(item.status).toBe('PENDING');
-      expect(item.videoId).toEqual(expect.any(String));
-      expect(item.inputKey).toContain('user-1-');
-      expect(item.inputKey).toContain('-source.mp4');
-      expect(item.outputZipKey).toContain('user-1-');
-      expect(item.outputZipKey).toContain('-processed.zip');
-    }
-
-    expect(gateway.createPending).toHaveBeenCalledTimes(1);
-    expect(gateway.uploadMultipartFromPath).toHaveBeenCalledTimes(1);
-    expect(gateway.publishProcessingEvent).toHaveBeenCalledTimes(1);
-
-    expect(gateway.publishProcessingEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user: expect.objectContaining({ id: 'user-1', email: 'u@x.com' }),
-        event: 'VIDEO_PENDING',
-      }),
+    const usecase = new UploadVideos(
+      gateway as unknown as VideoGateway,
+      { inputBucket: 'in-bucket', outputBucket: 'out-bucket' },
+      logger as any,
     );
 
-    expect(gateway.updateStatus).not.toHaveBeenCalled();
-    expect(unlink).toHaveBeenCalledWith('/tmp/file-1');
-  });
-
-  test('when validate throws a non-Error, it uses upload_failed and logs without stack', async () => {
-    const gateway = makeGateway();
-    const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
-
-    const validate = jest.fn(() => {
-      throw new Error('upload_failed');
-    });
+    const validate = jest.fn();
 
     const res = await usecase.execute({
-      user,
+      user: { id: 'u1', email: 'u1@mail.com', attributes: {} } as any,
       files: [
         {
           originalFileName: 'video.mp4',
           contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-non-error-1',
+          size: 10,
+          tempFilePath: '/tmp/a.mp4',
         },
       ],
       validate,
     });
 
-    expect(res.items[0].ok).toBe(false);
-    if (!res.items[0].ok) {
-      expect(res.items[0].errorMessage).toBe('upload_failed');
-    }
+    expect(res.items[0]).toEqual({
+      ok: false,
+      originalFileName: 'video.mp4',
+      status: VideoStatus.ERROR,
+      errorMessage: 'S3_FAIL',
+      videoId: 'v1',
+    });
 
-    const failedCall = logger.error.mock.calls.find(
+    expect(logger.error).toHaveBeenCalledWith(
+      'upload_videos.update_status.failed',
+      expect.objectContaining({
+        userId: 'u1',
+        videoId: 'v1',
+        errorMessage: 'S3_FAIL',
+        updateErrorMessage: 'update_status_failed',
+      }),
+    );
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'upload_videos.temp_file.deleted',
+      expect.objectContaining({
+        userId: 'u1',
+        videoId: 'v1',
+        tempFilePath: '/tmp/a.mp4',
+      }),
+    );
+  });
+
+  it('Error sem stack: não inclui stack/updateStack/unlinkStack nos logs', async () => {
+    const gateway = makeGateway();
+    const logger = makeLogger();
+
+    randomUUIDMock.mockReturnValueOnce('v1');
+
+    const s3Err = new Error('S3_FAIL');
+    s3Err.stack = undefined;
+
+    const updErr = new Error('UPDATE_FAIL');
+    updErr.stack = undefined;
+
+    const unlinkErr = new Error('UNLINK_FAIL');
+    unlinkErr.stack = undefined;
+
+    gateway.createVideoMetaData.mockResolvedValue(undefined);
+    gateway.uploadMultipartFromPath.mockRejectedValueOnce(s3Err);
+    gateway.updateStatus.mockRejectedValueOnce(updErr);
+
+    unlinkMock.mockRejectedValueOnce(unlinkErr);
+
+    const usecase = new UploadVideos(
+      gateway as unknown as VideoGateway,
+      { inputBucket: 'in-bucket', outputBucket: 'out-bucket' },
+      logger as any,
+    );
+
+    const validate = jest.fn();
+
+    const res = await usecase.execute({
+      user: { id: 'u1', email: 'u1@mail.com', attributes: {} } as any,
+      files: [
+        {
+          originalFileName: 'video.mp4',
+          contentType: 'video/mp4',
+          size: 10,
+          tempFilePath: '/tmp/a.mp4',
+        },
+      ],
+      validate,
+    });
+
+    expect(res.items[0]).toEqual({
+      ok: false,
+      originalFileName: 'video.mp4',
+      status: VideoStatus.ERROR,
+      errorMessage: 'S3_FAIL',
+      videoId: 'v1',
+    });
+
+    const processFailedCall = (logger.error as jest.Mock).mock.calls.find(
       (c) => c[0] === 'upload_videos.process_one.failed',
     );
-    expect(failedCall).toBeTruthy();
+    expect(processFailedCall?.[1]?.stack).toBeUndefined();
 
-    const meta = failedCall![1] ?? {};
-    expect(meta).toHaveProperty('errorMessage', 'upload_failed');
-
-    expect(gateway.updateStatus).not.toHaveBeenCalled();
-  });
-
-  test('when updateStatus rejects with non-Error, it logs update_status_failed and without updateStack', async () => {
-    const gateway = makeGateway();
-    const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
-
-    gateway.uploadMultipartFromPath.mockRejectedValueOnce(new Error('s3_fail'));
-    gateway.updateStatus.mockRejectedValueOnce('nope');
-
-    await usecase.execute({
-      user,
-      files: [
-        {
-          originalFileName: 'video.mp4',
-          contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-non-error-2',
-        },
-      ],
-      validate: jest.fn(),
-    });
-
-    const call = logger.error.mock.calls.find(
+    const updateFailedCall = (logger.error as jest.Mock).mock.calls.find(
       (c) => c[0] === 'upload_videos.update_status.failed',
     );
-    expect(call).toBeTruthy();
+    expect(updateFailedCall?.[1]?.updateStack).toBeUndefined();
+    expect(updateFailedCall?.[1]?.updateErrorMessage).toBe('UPDATE_FAIL');
 
-    const meta = call![1] ?? {};
-    expect(meta).toHaveProperty('updateErrorMessage', 'update_status_failed');
-    expect(meta).not.toHaveProperty('updateStack');
-  });
-
-  test('when unlink rejects with non-Error, it logs unlink_failed and without unlinkStack', async () => {
-    const gateway = makeGateway();
-    const logger = makeLogger();
-    const usecase = new UploadVideos(gateway, cfg, logger as any);
-
-    (unlink as unknown as jest.Mock).mockRejectedValueOnce('nope');
-
-    await usecase.execute({
-      user,
-      files: [
-        {
-          originalFileName: 'video.mp4',
-          contentType: 'video/mp4',
-          size: 123,
-          tempFilePath: '/tmp/file-non-error-3',
-        },
-      ],
-      validate: jest.fn(() => {
-        throw new Error('invalid_file');
-      }),
-    });
-
-    const call = logger.warn.mock.calls.find(
+    const unlinkFailedCall = (logger.warn as jest.Mock).mock.calls.find(
       (c) => c[0] === 'upload_videos.temp_file.delete_failed',
     );
-    expect(call).toBeTruthy();
-
-    const meta = call![1] ?? {};
-    expect(meta).toHaveProperty('unlinkErrorMessage', 'unlink_failed');
-    expect(meta).not.toHaveProperty('unlinkStack');
+    expect(unlinkFailedCall?.[1]?.unlinkStack).toBeUndefined();
+    expect(unlinkFailedCall?.[1]?.unlinkErrorMessage).toBe('UNLINK_FAIL');
   });
 });

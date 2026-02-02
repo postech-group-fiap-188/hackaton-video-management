@@ -1,7 +1,4 @@
-import {
-  UserContext,
-  UserContextProps,
-} from '../../domain/entities/user-context';
+import { User, UserProps } from '../../domain/entities/user-context';
 import { VideoGateway } from '../gateways/video-gateway';
 import type { AppLogger } from 'src/application/ports/app-logger';
 
@@ -11,8 +8,8 @@ export class ListUserVideos {
     private readonly logger: AppLogger,
   ) {}
 
-  async execute(userProps: UserContextProps) {
-    const user = UserContext.create(userProps);
+  async execute(userProps: UserProps) {
+    const user = User.create(userProps);
 
     this.logger.info('list_user_videos.start', { userId: user.id });
 
