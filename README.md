@@ -11,139 +11,187 @@
 ![Amazon SQS](https://img.shields.io/badge/Amazon%20SQS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/mongodb-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)
 
-Projeto desenvolvido referente ao Hackathon da quinta fase da Postech em Software Architecture - FIAP.
+Projeto do Hackathon (Postech / FIAP) para **upload e gerenciamento de vídeos**.
 
-A API recebe **1 ou mais vídeos**, faz **upload multipart no S3**, salva **metadados no MongoDB** (simulando DocumentDB) com status `PENDING` e publica um evento no **SNS** para outro microserviço processar.  
-Também lista vídeos do usuário, atualiza status via evento (fila SQS) e gera **URL assinada** para download do ZIP processado em **outro bucket**.
+A API recebe **1 ou mais vídeos**, faz **upload multipart no S3**, salva **metadados no MongoDB** com status `PENDING` e publica um evento no **SNS** para outro serviço processar.
+
+Depois, um consumidor de **SQS** recebe o evento de status (`SUCCEEDED` / `ERROR`) e atualiza o registro. Quando o status estiver `SUCCEEDED`, a API gera uma **presigned URL** para baixar o ZIP processado (armazenado em um bucket de saída).
 
 ---
 
-## Estrutura (Arquitetura Hexagonal / Ports & Adapters)
+## Fluxos suportados
+
+1) **Upload (1..N)**
+- valida tipo/extensão/tamanho
+- cria registro `PENDING`
+- faz upload multipart no S3 (bucket de entrada)
+- publica evento no SNS para processamento
+
+2) **Listagem do usuário**
+- lista metadados do usuário (por `userId`)
+
+3) **Atualização de status (SQS)**
+- consome mensagens com `{ videoId, status, errorMessage? }`
+
+4) **Download do ZIP processado**
+- apenas quando `status = SUCCEEDED`
+- gera presigned URL do bucket de saída
+
+---
+
+## Estrutura (Hexagonal / Ports & Adapters)
+
+Visão rápida das pastas principais:
 
 ```
-docker-compose.yml
-docker-compose.debug.yml
-Dockerfile
-
-├── .env.docker
-├── docker/
-│ ├── entrypoint.sh
-│ └── entrypoint.dev.sh
-├── localstack/
-│ ├── init-aws.sh
-│ └── sns-debug.sh
-└── src/
-├── main.ts
-├── app.module.ts
-├── interfaces/
-│ └── video-data-source.ts
-├── infra/
-│ ├── api/
-│ │ ├── api.module.ts
-│ │ ├── controllers/
-│ │ │ └── videos.http.controller.ts
-│ │ └── common/
-│ │ └── logger/
-│ │ └── app-logger.service.ts
-│ ├── aws/
-│ │ ├── aws.module.ts
-│ │ ├── s3/
-│ │ │ └── s3-storage.adapter.ts
-│ │ ├── sns/
-│ │ │ └── sns-video-processing.adapter.ts
-│ │ └── sqs/
-│ │ └── (status consumer / handler)
-│ └── database/
-│ ├── database.module.ts
-│ └── mongoose/
-│ ├── schemas/
-│ │ └── video.schema.ts
-│ └── repositories/
-│ └── video-repository.adapter.ts
-└── contexts/
-└── video/
-├── video.module.ts
-├── domain/
-│ ├── video-metadata.ts
-│ └── entities/enums/
-│ └── video-status.ts
-├── application/
-│ ├── errors/
-│ │ └── app-error.ts
-│ ├── gateways/
-│ │ ├── video-gateway.ts
-│ │ └── video-gateway.token.ts
-│ └── usecases/
-│ ├── upload-videos.ts
-│ ├── list-user-videos.ts
-│ ├── get-processed-video.ts
-│ └── update-video-status.ts
-└── adapters/
-├── controllers/
-│ └── video-controller.ts
-├── gateway/
-│ └── video-gateway-impl.ts
-└── presenters/
-├── upload-videos.presenter.ts
-├── list-videos.presenter.ts
-└── download-processed-zip.presenter.ts
+.
+├── docker/                  # scripts de entrypoint/wait
+├── localstack/              # init scripts do LocalStack
+├── mongo/                   # init do Mongo (collection + indexes)
+├── k8s/                     # manifests/templates (opcional)
+├── src/
+│   ├── domain/              # entidades, enums, regras
+│   ├── application/         # use cases + portas
+│   ├── interfaces/          # contratos (datasource/token)
+│   ├── adapters/            # controller (core) + presenters + gateway impl
+│   └── infra/               # Nest modules, AWS adapters, Mongo adapter, HTTP
+└── test/                    # testes de integração (*.int-spec.ts)
 ```
 
 ---
 
-## Features
+## Subir local com Docker + LocalStack
 
-### 1) Upload de 1 ou mais vídeos (multipart)
+### 1) Criar o arquivo de ambiente
 
-- Recebe upload via API (`multipart/form-data`) com **1..N arquivos**
-- Validações básicas de vídeo (content-type / tamanho)
-- Cria metadado no MongoDB com status `PENDING`
-- Faz upload **multipart** para o bucket de **input**
-- Publica evento no **SNS** (`video-processing-topic`) para outro MS processar
-- Remove arquivo temporário sempre (sucesso ou erro)
+O `docker-compose.yml` espera um arquivo `.env.docker`.
 
-### 2) Listar vídeos do usuário
+```bash
+cp .env.example .env.docker
+```
 
-- Retorna metadados por `email`, ordenados por criação
-
-### 3) Atualizar status via evento (SQS)
-
-- Consome evento de status em uma fila SQS (ex.: `video-status-queue`)
-- Atualiza metadado para `SUCCEEDED` ou `ERROR` (`errorMessage` opcional)
-
-### 4) Download do ZIP processado (outro bucket)
-
-- Gera **presigned URL** para download do ZIP no bucket de **output**
-- Padrão de key do zip: `<email>-<videoId>-processed.zip`
-- Valida ownership (email)
-
----
-
-## Pré-requisitos (Local)
-
-- **Docker**
-- **Docker Compose**
-
----
-
-## Rodar localmente com Docker + LocalStack
-
-### 1) Subir tudo (Mongo + LocalStack + API)
+### 2) Subir Mongo + LocalStack + API
 
 ```bash
 docker compose up --build
 ```
 
-## Serviços
+### Serviços
 
-- API: <http://localhost:3000>
-- Swagger: <http://localhost:3000/docs>
-- LocalStack: <http://localhost:4566>
-- Mongo: mongodb://localhost:27017
+- API: `http://localhost:3000`
+- Swagger: `http://localhost:3000/docs`
+- LocalStack: `http://localhost:4566`
+- Mongo: `mongodb://localhost:27017`
 
-## Como verificar se o evento foi publicado no SNS (LocalStack)
+---
 
-1. Ver recursos criados
+## Variáveis de ambiente
+
+O projeto usa `@nestjs/config` e valida variáveis essenciais na inicialização.
+
+Arquivo recomendado: `.env.docker` (copiado de `.env.example`).
+
+| Variável | Obrigatória | Exemplo | Observação |
+|---|---:|---|---|
+| `PORT` | não | `3000` | porta da API |
+| `MONGO_URI` | sim | `mongodb://mongo:27017` | para dev sem Docker: `mongodb://localhost:27017` |
+| `MONGO_DB_COLLECTION` | sim | `videosdb` | apesar do nome, aqui é o **dbName** do Mongo |
+| `AWS_REGION` | não | `us-east-1` | padrão `us-east-1` |
+| `AWS_ENDPOINT_URL` | não | `http://localstack:4566` | para AWS real, deixe vazio |
+| `S3_INPUT_BUCKET_NAME` | sim | `videos-input` | bucket de entrada |
+| `S3_OUTPUT_BUCKET_NAME` | sim | `videos-processed` | bucket de saída |
+| `SNS_PROCESSING_TOPIC_ARN` | sim | `arn:aws:sns:us-east-1:000000000000:video-processing-topic` | tópico de processamento |
+| `SQS_STATUS_QUEUE_URL` | sim | `http://localstack:4566/000000000000/video-status-queue` | fila consumida pela API |
+| `MAX_FILES_PER_REQUEST` | não | `3` | limite do upload multipart |
+| `MAX_VIDEO_BYTES` | não | `2147483648` | default 2GB |
+
+---
+
+## API
+
+### Headers (obrigatórios)
+
+- `x-user-id`: identifica o usuário
+- `x-user-email`: opcional (fica disponível no evento/publicação)
+
+### Endpoints
+
+- `POST /videos/upload` (multipart: `videos[]`)
+- `GET /users/me/videos`
+- `GET /videos/:videoId/processed-zip`
+
+### Exemplos (cURL)
+
+Upload de 1 vídeo:
+
+```bash
+curl -X POST "http://localhost:3000/videos/upload" \
+  -H "x-user-id: user-123" \
+  -H "x-user-email: user123@email.com" \
+  -F "videos=@./sample.mp4"
+```
+
+Listar vídeos do usuário:
+
+```bash
+curl "http://localhost:3000/users/me/videos" \
+  -H "x-user-id: user-123" \
+  -H "x-user-email: user123@email.com"
+```
+
+Gerar presigned URL do ZIP (somente quando `SUCCEEDED`):
+
+```bash
+curl "http://localhost:3000/videos/<videoId>/processed-zip" \
+  -H "x-user-id: user-123" \
+  -H "x-user-email: user123@email.com"
+```
+
+---
+
+## Contratos de evento
+
+### SNS (publicado após upload)
+
+O adapter publica no tópico configurado em `SNS_PROCESSING_TOPIC_ARN`.
+
+- `Message`: JSON do evento
+- `MessageAttributes.eventType`: `VideoUploaded` (string)
+
+Exemplo de payload:
+
+```json
+{
+  "videoId": "<uuid>",
+  "user": { "id": "user-123", "email": "user123@email.com", "attributes": {} },
+  "inputBucket": "videos-input",
+  "inputKey": "user-123-<uuid>-source.mp4",
+  "outputBucket": "videos-processed",
+  "outputZipKey": "user-123-<uuid>-processed.zip",
+  "contentType": "video/mp4",
+  "size": 123456,
+  "event": "VIDEO_PENDING",
+  "originalFileName": "sample.mp4"
+}
+```
+
+### SQS (consumido para atualizar status)
+
+Fila configurada em `SQS_STATUS_QUEUE_URL`.
+
+```json
+{
+  "videoId": "<uuid>",
+  "status": "SUCCEEDED",
+  "errorMessage": "(opcional)"
+}
+```
+
+---
+
+## Debug do LocalStack (opcional)
+
+Listar recursos:
 
 ```bash
 docker exec -it hackaton-video-management_localstack awslocal s3 ls
@@ -152,84 +200,53 @@ docker exec -it hackaton-video-management_localstack awslocal sqs list-queues
 docker exec -it hackaton-video-management_localstack awslocal sns list-subscriptions
 ```
 
-1. Publicar manualmente um teste e consumir na debug queue
+Ler 1 mensagem da fila de status:
 
 ```bash
-TOPIC_ARN=$(docker exec -it hackaton-video-management_localstack \
-  awslocal sns list-topics --query 'Topics[0].TopicArn' --output text)
-
 docker exec -it hackaton-video-management_localstack \
-  awslocal sns publish --topic-arn "$TOPIC_ARN" --message '{"ping":"pong"}'
-
-DEBUG_URL=$(docker exec -it hackaton-video-management_localstack \
-  awslocal sqs get-queue-url --queue-name video-processing-debug-queue --query 'QueueUrl' --output text)
-
-docker exec -it hackaton-video-management_localstack \
-  awslocal sqs receive-message --queue-url "$DEBUG_URL" --max-number-of-messages 1
+  awslocal sqs receive-message \
+  --queue-url "http://localhost:4566/000000000000/video-status-queue" \
+  --max-number-of-messages 1
 ```
 
-**Se aparecer mensagem, o tópico e a assinatura estão funcionando.**
+---
 
-## Variáveis de ambiente (.env.docker)
+## Testes
 
-```text
-
-Exemplo (ajuste conforme seus nomes reais):
-
-AWS_REGION=us-east-1
-AWS_ENDPOINT_URL=http://localstack:4566
-
-AWS_ACCESS_KEY_ID=test
-AWS_SECRET_ACCESS_KEY=test
-
-S3_INPUT_BUCKET_NAME=videos-input
-S3_OUTPUT_BUCKET_NAME=videos-processed
-
-SNS_PROCESSING_TOPIC_ARN=arn:aws:sns:us-east-1:000000000000:video-processing-topic
-
-# fila que sua aplicação consome para status (não é a debug)
-SQS_STATUS_QUEUE_URL=http://localstack:4566/000000000000/video-status-queue
-
-MONGO_URI=mongodb://mongo:27017
-MONGO_DB=hackaton
-```
-
-## Rotas principais (API)
-
-O path exato depende do seu videos.http.controller.ts. Exemplo típico:
-
-> POST /videos/upload (multipart: 1..N arquivos)
-
-> GET /videos (lista vídeos do usuário autenticado)
-
-> GET /videos/:videoId/processed-zip (gera presign do ZIP no bucket de output)
-
-## Eventos
-
-> Consumer SQS para status (fila video-status-queue) → atualiza metadados
-
-## Swagger
-
-> GET /docs
-
-## Testes Unitários
+Unitários:
 
 ```bash
-cd app
 npm test
 ```
 
-## Integração (Mongo in-memory + mocks de AWS)
+Integração:
 
 ```bash
-cd app
-npm run test:int
+npm run test:integration
 ```
 
-## Autores
+---
 
-- Douglas Vinicius Caldas Bonin (<https://github.com/dviniciusbonin>)
-- Layssa Hillary (<https://github.com/layssahillary>)
-- Thiago Savin (<https://github.com/Thiagosavin>)
-- Shayna Bauer (<https://github.com/Shaysilvares>)
-- Paulo Gomes (<https://github.com/cavalcante001>)
+## Qualidade
+
+Lint:
+
+```bash
+npm run lint
+```
+
+Format:
+
+```bash
+npm run format
+```
+
+---
+
+## 👨‍💻 Autores
+
+- Douglas Vinicius Caldas Bonin (github.com/dviniciusbonin)
+- Layssa Hillary (github.com/layssahillary)
+- Thiago Savin (github.com/Thiagosavin)
+- Shayna Bauer (github.com/Shaysilvares)
+- Paulo Gomes (github.com/cavalcante001)
