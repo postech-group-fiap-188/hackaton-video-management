@@ -22,18 +22,22 @@ Depois, um consumidor de **SQS** recebe o evento de status (`SUCCEEDED` / `ERROR
 ## Fluxos suportados
 
 1) **Upload (1..N)**
+
 - valida tipo/extensão/tamanho
 - cria registro `PENDING`
 - faz upload multipart no S3 (bucket de entrada)
 - publica evento no SNS para processamento
 
-2) **Listagem do usuário**
+1) **Listagem do usuário**
+
 - lista metadados do usuário (por `userId`)
 
-3) **Atualização de status (SQS)**
+1) **Atualização de status (SQS)**
+
 - consome mensagens com `{ videoId, status, errorMessage? }`
 
-4) **Download do ZIP processado**
+1) **Download do ZIP processado**
+
 - apenas quando `status = SUCCEEDED`
 - gera presigned URL do bucket de saída
 
@@ -92,7 +96,7 @@ O projeto usa `@nestjs/config` e valida variáveis essenciais na inicialização
 Arquivo recomendado: `.env.docker` (copiado de `.env.example`).
 
 | Variável | Obrigatória | Exemplo | Observação |
-|---|---:|---|---|
+|---|---|---|---|
 | `PORT` | não | `3000` | porta da API |
 | `MONGO_URI` | sim | `mongodb://mongo:27017` | para dev sem Docker: `mongodb://localhost:27017` |
 | `MONGO_DB_COLLECTION` | sim | `videosdb` | apesar do nome, aqui é o **dbName** do Mongo |
