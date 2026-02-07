@@ -2,7 +2,7 @@ import { GetProcessedVideo } from './get-processed-video';
 import { AppError } from '../../domain/errors/app-error';
 import type { VideoGateway } from '../gateways/video-gateway';
 import { Video } from 'src/domain/entities/video';
-import { User } from 'src/domain/entities/user-context';
+import { User } from 'src/domain/entities/user';
 import type { AppLogger } from 'src/application/ports/app-logger';
 import { VideoStatus } from 'src/domain/enums/video-status';
 

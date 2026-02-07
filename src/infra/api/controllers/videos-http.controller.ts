@@ -27,7 +27,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { VideoController } from 'src/adapters/controllers/video-controller';
 
-import type { UserProps } from 'src/domain/entities/user-context';
+import type { UserProps } from 'src/domain/entities/user';
 import type { VideoStatus } from 'src/domain/enums/video-status';
 
 import { VideoRepositoryDataSource } from 'src/interfaces/video-repository-data-source';

@@ -1,4 +1,4 @@
-import { User, UserProps } from '../../domain/entities/user-context';
+import { User, UserProps } from '../../domain/entities/user';
 import { VideoGateway } from '../gateways/video-gateway';
 import type { AppLogger } from 'src/application/ports/app-logger';
 

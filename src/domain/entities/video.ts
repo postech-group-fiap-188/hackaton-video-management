@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { User } from './user-context';
+import { User } from './user';
 import { VideoStatus } from '../enums/video-status';
 
 export class Video {

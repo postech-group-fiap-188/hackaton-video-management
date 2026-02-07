@@ -1,5 +1,5 @@
 import { Video } from 'src/domain/entities/video';
-import { User } from 'src/domain/entities/user-context';
+import { User } from 'src/domain/entities/user';
 import { VideoStatus } from 'src/domain/enums/video-status';
 
 import {

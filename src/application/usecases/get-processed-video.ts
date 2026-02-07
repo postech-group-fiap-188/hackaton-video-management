@@ -3,7 +3,7 @@ import { AppError } from '../../domain/errors/app-error';
 import type { VideoGateway } from '../gateways/video-gateway';
 
 import { VideoStatus } from 'src/domain/enums/video-status';
-import { User, UserProps } from 'src/domain/entities/user-context';
+import { User, UserProps } from 'src/domain/entities/user';
 
 export class GetProcessedVideo {
   constructor(

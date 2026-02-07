@@ -1,4 +1,4 @@
-import { UserProps } from '../../domain/entities/user-context';
+import { UserProps } from '../../domain/entities/user';
 import { Video } from '../../domain/entities/video';
 import { VideoStatus } from 'src/domain/enums/video-status';
 

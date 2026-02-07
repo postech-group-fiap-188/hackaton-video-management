@@ -13,7 +13,7 @@ import { UploadVideosPresenter } from '../presenters/upload-videos.presenter';
 import { ListVideosPresenter } from '../presenters/list-videos.presenter';
 import { DownloadProcessedZipPresenter } from '../presenters/download-processed-zip.presenter';
 
-import type { UserProps } from '../../domain/entities/user-context';
+import type { UserProps } from '../../domain/entities/user';
 import type { AppLogger } from 'src/application/ports/app-logger';
 import type { VideoStatus } from 'src/domain/enums/video-status';
 

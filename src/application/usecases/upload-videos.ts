@@ -3,7 +3,7 @@ import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { VideoGateway } from '../gateways/video-gateway';
-import { User, UserProps } from 'src/domain/entities/user-context';
+import { User, UserProps } from 'src/domain/entities/user';
 import { Video } from 'src/domain/entities/video';
 import type { AppLogger } from 'src/application/ports/app-logger';
 import { VideoStatus } from 'src/domain/enums/video-status';
