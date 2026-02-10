@@ -9,7 +9,7 @@ async function bootstrap(): Promise<void> {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Video Upload Service')
     .setDescription(
-      'Upload para bucket de entrada + download do ZIP processado em bucket diferente',
+      'Aplicação para gerenciamento de vídeos, permitindo upload e envio para processamento, listagem e download dos vídeos processados.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()

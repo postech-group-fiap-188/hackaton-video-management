@@ -1,18 +1,27 @@
-FROM node:20-alpine
-
-WORKDIR /srv
+# ---------- build ----------
+FROM node:20-alpine AS build
+WORKDIR /srv/app
 
 COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY . .
-
 RUN npm run build
 
-RUN sed -i 's/\r$//' /srv/docker/*.sh || true
 
-RUN chmod +x /srv/docker/entrypoint.sh /srv/docker/wait-port.sh
+# ---------- runtime ----------
+FROM node:20-alpine AS runtime
+WORKDIR /srv
 
-EXPOSE 3000 9229
+ENV NODE_ENV=production
 
-CMD ["sh","-lc","/srv/docker/entrypoint.sh"]
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY --from=build /srv/dist ./dist
+
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
+EXPOSE 3000
+CMD ["node", "dist/main.js"]
