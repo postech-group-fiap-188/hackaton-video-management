@@ -13,8 +13,14 @@ env:
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   ECR_REPOSITORY: hackaton-video-management
   IMAGE_TAG: ${{ github.sha }}
-  CLUSTER_NAME: hackaton-video-management-cluster
+  CLUSTER_NAME: hackaton-video-cluster
   NAMESPACE: hackaton-video-management
+  MONGO_DB_COLLECTION: ${{ vars.MONGO_DB_COLLECTION }}
+  S3_INPUT_BUCKET_NAME: ${{ vars.S3_INPUT_BUCKET_NAME }}
+  S3_OUTPUT_BUCKET_NAME: ${{ vars.S3_OUTPUT_BUCKET_NAME }}
+  SNS_PROCESSING_TOPIC_ARN: ${{ vars.SNS_PROCESSING_TOPIC_ARN }}
+  SQS_STATUS_QUEUE_URL: ${{ vars.SQS_STATUS_QUEUE_URL }}
+  MAX_VIDEO_BYTES: ${{ vars.MAX_VIDEO_BYTES }}
 
 jobs:
   build:
@@ -85,7 +91,7 @@ jobs:
         run: |
           helm upgrade --install hackaton-video-management ./k8s \
             --namespace ${{ env.NAMESPACE }} \
-            -- create-namespace \
+            --create-namespace \
             --atomic \
             --set image.repository=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} \
             --set image.tag=${{ needs.build.outputs.image-tag }} \
