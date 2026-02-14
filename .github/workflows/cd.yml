@@ -11,10 +11,10 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
-  ECR_REPOSITORY: hackaton-video-management
+  ECR_REPOSITORY: hackathon-video-management
   IMAGE_TAG: ${{ github.sha }}
-  CLUSTER_NAME: hackaton-video-cluster
-  NAMESPACE: hackaton-video-management
+  CLUSTER_NAME: hackathon-video-cluster
+  NAMESPACE: hackathon-video-management
   MONGO_DB_COLLECTION: ${{ vars.MONGO_DB_COLLECTION }}
   S3_INPUT_BUCKET_NAME: ${{ vars.S3_INPUT_BUCKET_NAME }}
   S3_OUTPUT_BUCKET_NAME: ${{ vars.S3_OUTPUT_BUCKET_NAME }}
@@ -89,7 +89,7 @@ jobs:
 
       - name: Deploy with Helm
         run: |
-          helm upgrade --install hackaton-video-management ./k8s \
+          helm upgrade --install hackathon-video-management ./k8s \
             --namespace ${{ env.NAMESPACE }} \
             --create-namespace \
             --atomic \
@@ -124,4 +124,4 @@ jobs:
           echo "Image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ needs.build.outputs.image-tag }}"
           echo "Cluster: ${{ env.CLUSTER_NAME }}"
           echo "Namespace: ${{ env.NAMESPACE }}"
-          echo "Helm Release: hackaton-video-management"
+          echo "Helm Release: hackathon-video-management"

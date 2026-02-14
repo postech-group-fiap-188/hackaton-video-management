@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hackaton-video-management
+  name: hackathon-video-management
   labels:
-    app: hackaton-video-management
+    app: hackathon-video-management
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: hackaton-video-management
+      app: hackathon-video-management
   template:
     metadata:
       labels:
-        app: hackaton-video-management
+        app: hackathon-video-management
     spec:
       containers:
         - name: api
@@ -20,9 +20,9 @@ spec:
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: hackaton-video-management-config
+                name: hackathon-video-management-config
             - secretRef:
-                name: hackaton-video-management-secrets
+                name: hackathon-video-management-secrets
           ports:
             - containerPort: 3000
               name: http

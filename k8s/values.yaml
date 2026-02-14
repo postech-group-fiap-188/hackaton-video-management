@@ -1,4 +1,4 @@
-# Default values for hackaton-video-management.
+# Default values for hackathon-video-management.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -64,7 +64,7 @@ ingress:
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
   hosts:
-    - host: hackaton-video-management.local
+    - host: hackathon-video-management.local
       paths:
         - path: /
           pathType: ImplementationSpecific
