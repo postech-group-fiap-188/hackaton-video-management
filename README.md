@@ -198,16 +198,16 @@ Fila configurada em `SQS_STATUS_QUEUE_URL`.
 Listar recursos:
 
 ```bash
-docker exec -it hackaton-video-management_localstack awslocal s3 ls
-docker exec -it hackaton-video-management_localstack awslocal sns list-topics
-docker exec -it hackaton-video-management_localstack awslocal sqs list-queues
-docker exec -it hackaton-video-management_localstack awslocal sns list-subscriptions
+docker exec -it hackathon-video-management_localstack awslocal s3 ls
+docker exec -it hackathon-video-management_localstack awslocal sns list-topics
+docker exec -it hackathon-video-management_localstack awslocal sqs list-queues
+docker exec -it hackathon-video-management_localstack awslocal sns list-subscriptions
 ```
 
 Ler 1 mensagem da fila de status:
 
 ```bash
-docker exec -it hackaton-video-management_localstack \
+docker exec -it hackathon-video-management_localstack \
   awslocal sqs receive-message \
   --queue-url "http://localhost:4566/000000000000/video-status-queue" \
   --max-number-of-messages 1

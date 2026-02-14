@@ -1,7 +1,7 @@
 services:
   mongo:
     image: mongo:7
-    container_name: hackaton-video-management_mongo
+    container_name: hackathon-video-management_mongo
     ports:
       - "27017:27017"
     volumes:
@@ -9,7 +9,7 @@ services:
 
   localstack:
     image: localstack/localstack:3
-    container_name: hackaton-video-management_localstack
+    container_name: hackathon-video-management_localstack
     environment:
       - SERVICES=s3,sqs,sns
       - AWS_DEFAULT_REGION=us-east-1
@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: hackaton-video-management_api
+    container_name: hackathon-video-management_api
     env_file:
       - .env.docker
     depends_on:
