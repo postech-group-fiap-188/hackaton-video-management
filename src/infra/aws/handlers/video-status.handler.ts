@@ -13,12 +13,27 @@ type StatusMessage = {
   errorMessage?: string;
 };
 
-const StatusSchema = z.object({
+const UserSchema = z.object({
+  id: z.string().min(1),
+  email: z.email(),
+  name: z.string().min(1),
+});
+
+const BasePayloadSchema = z.object({
   videoId: z.string().min(1),
-  status: z.nativeEnum(VideoStatus).refine((s) => s !== VideoStatus.PENDING, {
-    message: 'invalid status',
-  }),
-  errorMessage: z.string().optional(),
+  user: UserSchema,
+  event: z.string().min(1),
+  timestamp: z.iso.datetime(),
+  outputZipKey: z.string().optional(),
+  error: z.string().optional(),
+});
+
+const ProcessedExtrasSchema = z.object({
+  outputZipKey: z.string().min(1),
+});
+
+const ErrorExtrasSchema = z.object({
+  error: z.string().min(1),
 });
 
 @Injectable()
@@ -38,11 +53,11 @@ export class VideoStatusHandler {
       return;
     }
 
-    let payload: StatusMessage;
+    let mapped: StatusMessage;
 
     try {
       const json = safeJsonParse(raw);
-      payload = parseStatus(json);
+      mapped = mapQueuePayloadToStatus(json);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
 
@@ -51,19 +66,20 @@ export class VideoStatusHandler {
         error: errorMessage,
         raw,
       });
+
       throw err;
     }
 
     await this.updateStatus.execute({
-      videoId: payload.videoId,
-      status: payload.status,
-      errorMessage: payload.errorMessage,
+      videoId: mapped.videoId,
+      status: mapped.status,
+      errorMessage: mapped.errorMessage,
     });
 
     this.logger.info('sqs_status_processed', {
       messageId,
-      videoId: payload.videoId,
-      status: payload.status,
+      videoId: mapped.videoId,
+      status: mapped.status,
     });
   }
 
@@ -84,17 +100,66 @@ function safeJsonParse(raw: string): unknown {
   }
 }
 
-function parseStatus(value: unknown): StatusMessage {
-  const parsed = StatusSchema.safeParse(value);
+function mapQueuePayloadToStatus(value: unknown): StatusMessage {
+  const parsed = BasePayloadSchema.safeParse(value);
 
   if (!parsed.success) {
     const details = parsed.error.issues.map((i) => ({
       path: i.path.join('.'),
       message: i.message,
     }));
-
     throw new Error(`Invalid VIDEO_STATUS payload: ${JSON.stringify(details)}`);
   }
 
-  return parsed.data;
+  const payload = parsed.data;
+
+  switch (payload.event) {
+    case 'VIDEO_PROCESSED': {
+      const extras = ProcessedExtrasSchema.safeParse({
+        outputZipKey: payload.outputZipKey,
+      });
+
+      if (!extras.success) {
+        throw new Error(
+          `Invalid VIDEO_STATUS payload: ${JSON.stringify(
+            extras.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          )}`,
+        );
+      }
+
+      return {
+        videoId: payload.videoId,
+        status: VideoStatus.SUCCEEDED,
+      };
+    }
+
+    case 'VIDEO_ERROR': {
+      const extras = ErrorExtrasSchema.safeParse({
+        error: payload.error,
+      });
+
+      if (!extras.success) {
+        throw new Error(
+          `Invalid VIDEO_STATUS payload: ${JSON.stringify(
+            extras.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          )}`,
+        );
+      }
+
+      return {
+        videoId: payload.videoId,
+        status: VideoStatus.ERROR,
+        errorMessage: extras.data.error,
+      };
+    }
+
+    default:
+      throw new Error(`Unsupported VIDEO_STATUS event: ${payload.event}`);
+  }
 }
