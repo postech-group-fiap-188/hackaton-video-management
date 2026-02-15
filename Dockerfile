@@ -18,7 +18,7 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-COPY --from=build /srv/dist ./dist
+COPY --from=build /srv/app/dist ./dist
 
 RUN addgroup -S app && adduser -S app -G app
 USER app
