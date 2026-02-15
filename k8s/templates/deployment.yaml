@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hackathon-video-management
+  labels:
+    app: hackathon-video-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hackathon-video-management
+  template:
+    metadata:
+      labels:
+        app: hackathon-video-management
+    spec:
+      containers:
+        - name: api
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: hackathon-video-management-config
+            - secretRef:
+                name: hackathon-video-management-secrets
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

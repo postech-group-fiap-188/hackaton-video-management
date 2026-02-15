@@ -1,0 +1,35 @@
+name: SonarQube Quality Gate
+on:
+  workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: true
+
+
+jobs:
+  sonarqube:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download lcov.info
+        uses: actions/download-artifact@v4
+        with:
+          name: lcov
+          path: coverage
+
+      - name: Check lcov
+        run: |
+          ls -la coverage
+          test -f coverage/lcov.info
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

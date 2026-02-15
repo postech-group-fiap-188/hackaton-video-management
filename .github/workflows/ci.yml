@@ -1,0 +1,25 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, release]
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    uses: ./.github/workflows/_build.yml
+
+  lint:
+    uses: ./.github/workflows/_lint.yml
+
+  tests:
+    needs: build 
+    uses: ./.github/workflows/_tests.yml
+
+  sonarqube:
+    needs: tests 
+    uses: ./.github/workflows/_sonarqube.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

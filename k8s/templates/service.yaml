@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hackathon-video-management
+  labels:
+    app: hackathon-video-management
+spec:
+  selector:
+    app: hackathon-video-management
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
