@@ -19,7 +19,7 @@ async function bootstrap(): Promise<void> {
   SwaggerModule.setup('swagger', app, doc);
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   const logger = app.get(AppLoggerService);
   logger.info('app_started', {
