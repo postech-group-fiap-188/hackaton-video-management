@@ -16,7 +16,7 @@ type StatusMessage = {
 const UserSchema = z.object({
   id: z.string().min(1),
   email: z.email(),
-  name: z.string().min(1),
+  name: z.string().min(1).optional(),
 });
 
 const BasePayloadSchema = z.object({
