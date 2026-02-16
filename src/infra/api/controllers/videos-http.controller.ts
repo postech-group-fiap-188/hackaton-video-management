@@ -228,6 +228,7 @@ function getUserPropsFromHeaders(req: Request): UserProps {
   return {
     id: parsed.id,
     email: parsed.email,
+    name: parsed.name,
     attributes: parsed.attributes,
   };
 }
@@ -240,12 +241,14 @@ function parseXUserHeaders(headers: Record<string, unknown>): ParsedUserProps {
 
   const id = readStringHeader(lower, 'x-user-id');
   const email = readStringHeader(lower, 'x-user-email');
+  const name = readStringHeader(lower, 'x-user-name');
 
   const attributes: Record<string, string> = {};
 
   for (const [k, v] of Object.entries(lower)) {
     if (!k.startsWith('x-user-')) continue;
-    if (k === 'x-user-id' || k === 'x-user-email') continue;
+    if (k === 'x-user-id' || k === 'x-user-email' || k === 'x-user-name')
+      continue;
     if (typeof v !== 'string') continue;
 
     const key = k.slice('x-user-'.length);
@@ -259,6 +262,7 @@ function parseXUserHeaders(headers: Record<string, unknown>): ParsedUserProps {
   return {
     id,
     email,
+    name,
     attributes: Object.keys(attributes).length ? attributes : undefined,
   };
 }
