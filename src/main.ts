@@ -12,7 +12,16 @@ async function bootstrap(): Promise<void> {
       'Aplicação para gerenciamento de vídeos, permitindo upload e envio para processamento, listagem e download dos vídeos processados.',
     )
     .setVersion('1.0.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        name: 'JWT',
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Informe o JWT',
+      },
+      'JWT',
+    )
     .build();
 
   const doc = SwaggerModule.createDocument(app, swaggerConfig);
