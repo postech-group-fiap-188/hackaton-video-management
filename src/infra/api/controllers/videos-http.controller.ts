@@ -11,6 +11,7 @@ import {
 import type { Request } from 'express';
 
 import {
+  ApiBearerAuth,
   ApiBody,
   ApiOkResponse,
   ApiParam,
@@ -44,6 +45,7 @@ import {
 } from '../dtos/presigned-upload-response.dto';
 
 @ApiTags('videos')
+@ApiBearerAuth()
 @ApiSecurity('x-user-id')
 @ApiSecurity('x-user-email')
 @Controller()

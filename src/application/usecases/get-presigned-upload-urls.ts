@@ -82,6 +82,8 @@ export class GetPresignedUploadUrls {
           'user-id': user.id,
           'user-email': user.email ?? '',
           'user-name': user.name ?? '',
+          'output-zip-key': outputZipKey,
+          'video-id': videoId,
         },
       });
 
