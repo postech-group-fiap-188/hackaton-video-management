@@ -6,6 +6,24 @@ import { AppLoggerService } from 'src/infra/api/common/logger/app-logger.service
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
+  app.enableCors({
+    origin: [
+      'https://fiap-lab.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:5173'
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+    allowedHeaders: [
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'x-user-id',
+      'x-user-email',
+      'x-user-name'
+    ],
+  });
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Video Upload Service')
     .setDescription(
