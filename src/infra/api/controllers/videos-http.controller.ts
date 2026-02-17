@@ -126,10 +126,7 @@ export class VideosHttpController {
   ): Promise<GetProcessedZipResponseDto> {
     const user = getUserPropsFromHeaders(req);
 
-    const out = await this.controller.downloadProcessedZip(
-      user,
-      videoId,
-    );
+    const out = await this.controller.downloadProcessedZip(user, videoId);
 
     return {
       downloadUrl: out.downloadUrl,

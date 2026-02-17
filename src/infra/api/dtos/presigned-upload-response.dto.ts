@@ -15,16 +15,22 @@ export class PresignedUploadItemDto {
   @ApiProperty({ example: '4be5af76-3e8a-43e4-86be-7d78f5870c7d' })
   videoId!: string;
 
-  @ApiProperty({ example: 'https://bucket.s3.region.amazonaws.com/key?X-Amz-...' })
+  @ApiProperty({
+    example: 'https://bucket.s3.region.amazonaws.com/key?X-Amz-...',
+  })
   uploadUrl!: string;
 
   @ApiProperty({ example: 300 })
   expiresIn!: number;
 
-  @ApiProperty({ example: 'user-123-4be5af76-3e8a-43e4-86be-7d78f5870c7d-source.mp4' })
+  @ApiProperty({
+    example: 'user-123-4be5af76-3e8a-43e4-86be-7d78f5870c7d-source.mp4',
+  })
   inputKey!: string;
 
-  @ApiProperty({ example: 'user-123-4be5af76-3e8a-43e4-86be-7d78f5870c7d-processed.zip' })
+  @ApiProperty({
+    example: 'user-123-4be5af76-3e8a-43e4-86be-7d78f5870c7d-processed.zip',
+  })
   outputZipKey!: string;
 
   @ApiProperty({ type: () => PresignedUploadUserMetaDto })
