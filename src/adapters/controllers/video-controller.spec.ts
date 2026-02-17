@@ -3,6 +3,7 @@ import { VideoController } from './video-controller';
 import { VideoGatewayImpl } from '../gateway/video-gateway-impl';
 
 import { UploadVideos } from '../../application/usecases/upload-videos';
+import { GetPresignedUploadUrls } from '../../application/usecases/get-presigned-upload-urls';
 import { ListUserVideos } from '../../application/usecases/list-user-videos';
 import { UpdateVideoStatus } from '../../application/usecases/update-video-status';
 import { GetProcessedVideo } from '../../application/usecases/get-processed-video';
@@ -19,6 +20,11 @@ jest.mock('../gateway/video-gateway-impl', () => ({
 jest.mock('../../application/usecases/upload-videos', () => ({
   __esModule: true,
   UploadVideos: jest.fn(),
+}));
+
+jest.mock('../../application/usecases/get-presigned-upload-urls', () => ({
+  __esModule: true,
+  GetPresignedUploadUrls: jest.fn(),
 }));
 
 jest.mock('../../application/usecases/list-user-videos', () => ({
@@ -68,6 +74,8 @@ describe('VideoController', () => {
 
   const VideoGatewayImplMock = VideoGatewayImpl as unknown as jest.Mock;
   const UploadVideosMock = UploadVideos as unknown as jest.Mock;
+  const GetPresignedUploadUrlsMock =
+    GetPresignedUploadUrls as unknown as jest.Mock;
   const ListUserVideosMock = ListUserVideos as unknown as jest.Mock;
   const UpdateVideoStatusMock = UpdateVideoStatus as unknown as jest.Mock;
   const GetProcessedVideoMock = GetProcessedVideo as unknown as jest.Mock;
@@ -115,6 +123,53 @@ describe('VideoController', () => {
     expect(execute).toHaveBeenCalledWith({ user, files, validate });
     expect(uploadPresenterMock).toHaveBeenCalledWith([{ ok: true, videoId: 'v1' }]);
     expect(res).toEqual({ items: ['mapped'] });
+  });
+
+  it('initUpload: instancia gateway, instancia GetPresignedUploadUrls e retorna items', async () => {
+    const gatewayInstance = { gw: true };
+    VideoGatewayImplMock.mockImplementation(() => gatewayInstance);
+
+    const execute = jest.fn().mockResolvedValue({
+      items: [
+        {
+          videoId: 'vid-1',
+          uploadUrl: 'https://s3.example.com/signed',
+          expiresIn: 300,
+          inputKey: 'u1-vid-1-source.mp4',
+          outputZipKey: 'u1-vid-1-processed.zip',
+          user: { id: 'u1', email: 'u1@mail.com', name: 'Test User' },
+        },
+      ],
+    });
+    GetPresignedUploadUrlsMock.mockImplementation(() => ({ execute }));
+
+    const sut = new VideoController(ds, storage, publisher, cfg, logger);
+
+    const files = [
+      { originalFileName: 'video.mp4', contentType: 'video/mp4' },
+    ];
+
+    const res = await sut.initUpload(user, files);
+
+    expect(VideoGatewayImplMock).toHaveBeenCalledWith(ds, storage, publisher);
+    expect(GetPresignedUploadUrlsMock).toHaveBeenCalledWith(
+      gatewayInstance,
+      { inputBucket: 'in-bucket', outputBucket: 'out-bucket' },
+      logger,
+    );
+    expect(execute).toHaveBeenCalledWith({ user, files });
+    expect(res).toEqual({
+      items: [
+        {
+          videoId: 'vid-1',
+          uploadUrl: 'https://s3.example.com/signed',
+          expiresIn: 300,
+          inputKey: 'u1-vid-1-source.mp4',
+          outputZipKey: 'u1-vid-1-processed.zip',
+          user: { id: 'u1', email: 'u1@mail.com', name: 'Test User' },
+        },
+      ],
+    });
   });
 
   it('list: instancia gateway, instancia usecase e aplica presenter', async () => {

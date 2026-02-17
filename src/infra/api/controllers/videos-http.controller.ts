@@ -1,23 +1,17 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Inject,
   Param,
   Post,
   Req,
-  UploadedFiles,
-  UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import fs from 'node:fs';
-import path from 'node:path';
 
 import {
   ApiBody,
-  ApiConsumes,
   ApiOkResponse,
   ApiParam,
   ApiSecurity,
@@ -34,8 +28,6 @@ import { VideoRepositoryDataSource } from 'src/interfaces/video-repository-data-
 import { VideoStorageProvider } from 'src/interfaces/video-storage-provider';
 import { VideoProcessingPublisher } from 'src/interfaces/video-processing-publisher';
 
-import type { UploadResultItem } from 'src/application/usecases/upload-videos';
-
 import { AppLoggerService } from '../common/logger/app-logger.service';
 import { ApiUserHeaders } from '../dtos/api-header.dto';
 
@@ -43,13 +35,13 @@ import {
   ListAllVideosResponseDto,
   MyVideoItemResponseDto,
 } from '../dtos/list-videos-response.dto';
-import {
-  UploadVideosResponseDto,
-  UploadVideoItemResponseDto,
-} from '../dtos/upload-videos-response.dto';
 import { GetProcessedZipResponseDto } from '../dtos/get-processed-zip-response.dto';
 import { VideoStatusDto } from '../dtos/video-status.dto';
-import { AppError } from 'src/domain/errors/app-error';
+import { InitUploadRequestDto } from '../dtos/init-upload-request.dto';
+import {
+  PresignedUploadResponseDto,
+  PresignedUploadItemDto,
+} from '../dtos/presigned-upload-response.dto';
 
 @ApiTags('videos')
 @ApiSecurity('x-user-id')
@@ -91,61 +83,20 @@ export class VideosHttpController {
 
   @Post('videos/upload')
   @ApiUserHeaders()
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        videos: { type: 'array', items: { type: 'string', format: 'binary' } },
-      },
-      required: ['videos'],
-    },
-  })
-  @ApiOkResponse({ type: UploadVideosResponseDto })
-  @UseInterceptors(
-    FilesInterceptor('videos', Number(process.env.MAX_FILES_PER_REQUEST ?? 3), {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          const dir = '/tmp/uploads';
-          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-          cb(null, dir);
-        },
-        filename: (_req, file, cb) => {
-          const safe = file.originalname
-            .normalize('NFC')
-            .replaceAll(/[^\p{L}\p{N}._\-()]+/gu, '_');
-          cb(null, `${Date.now()}-${safe}`);
-        },
-      }),
-      limits: { fileSize: Number(process.env.MAX_VIDEO_BYTES ?? 2147483648) },
-    }),
-  )
+  @ApiBody({ type: InitUploadRequestDto })
+  @ApiOkResponse({ type: PresignedUploadResponseDto })
   async upload(
     @Req() req: Request,
-    @UploadedFiles() files: Express.Multer.File[],
-  ): Promise<UploadVideosResponseDto> {
+    @Body() body: InitUploadRequestDto,
+  ): Promise<PresignedUploadResponseDto> {
     const user = getUserPropsFromHeaders(req);
 
-    if (!files?.length) throw new BadRequestException('Missing videos');
+    if (!body.files || !Array.isArray(body.files) || body.files.length === 0) {
+      throw new BadRequestException('Missing or empty files array');
+    }
 
-    const maxBytes = Number(process.env.MAX_VIDEO_BYTES ?? 1024 * 1024 * 50);
-
-    const mapped = files.map((f) => ({
-      originalFileName: f.originalname,
-      contentType: f.mimetype,
-      size: f.size,
-      tempFilePath: f.path,
-    }));
-
-    const outUnknown: unknown = await this.controller.upload(
-      user,
-      mapped,
-      (m) => validateVideo(m, maxBytes),
-    );
-
-    const out = outUnknown as { items: UploadResultItem[] };
-
-    return toUploadVideosResponseDto(out.items);
+    const out = await this.controller.initUpload(user, body.files);
+    return { items: out.items as PresignedUploadItemDto[] };
   }
 
   @Get('videos')
@@ -175,12 +126,7 @@ export class VideosHttpController {
   ): Promise<GetProcessedZipResponseDto> {
     const user = getUserPropsFromHeaders(req);
 
-    const outUnknown: unknown = await this.controller.downloadProcessedZip(
-      user,
-      videoId,
-    );
-
-    const out = outUnknown as GetProcessedZipResponseDto;
+    const out = await this.controller.downloadProcessedZip(user, videoId);
 
     return {
       downloadUrl: out.downloadUrl,
@@ -197,28 +143,6 @@ function must(v: string | undefined, name: string): string {
 
 function toVideoStatusDto(status: string | VideoStatus): VideoStatusDto {
   return status as unknown as VideoStatusDto;
-}
-
-type UploadOkItem = Extract<UploadResultItem, { ok: true }>;
-
-function isUploadOkItem(i: UploadResultItem): i is UploadOkItem {
-  return i.ok === true;
-}
-
-function toUploadVideosResponseDto(
-  items: UploadResultItem[],
-): UploadVideosResponseDto {
-  const okItems: UploadOkItem[] = items.filter(isUploadOkItem);
-
-  const mapped: UploadVideoItemResponseDto[] = okItems.map((i) => ({
-    ok: true,
-    videoId: i.videoId,
-    inputKey: i.inputKey,
-    outputZipKey: i.outputZipKey,
-    status: toVideoStatusDto(i.status),
-  }));
-
-  return { items: mapped };
 }
 
 function getUserPropsFromHeaders(req: Request): UserProps {
@@ -276,44 +200,4 @@ function readStringHeader(
 
   const value = v.trim();
   return value;
-}
-
-function validateVideo(
-  meta: { originalFileName: string; contentType: string; size: number },
-  maxBytes: number,
-): void {
-  const allowedMime = new Set([
-    'video/mp4',
-    'video/quicktime',
-    'video/x-matroska',
-    'video/webm',
-  ]);
-  const allowedExt = new Set(['.mp4', '.mov', '.mkv', '.webm']);
-
-  const ext = path.extname(meta.originalFileName).toLowerCase();
-
-  if (!allowedExt.has(ext))
-    throw new AppError(
-      'INVALID_VIDEO_EXTENSION',
-      'INVALID_VIDEO_EXTENSION',
-      400,
-      { ext },
-    );
-
-  if (!allowedMime.has(meta.contentType))
-    throw new AppError(
-      'INVALID_VIDEO_MIMETYPE',
-      'INVALID_VIDEO_MIMETYPE',
-      400,
-      { mimetype: meta.contentType },
-    );
-
-  if (meta.size <= 0)
-    throw new AppError('INVALID_VIDEO_SIZE', 'INVALID_VIDEO_SIZE', 400);
-
-  if (meta.size > maxBytes)
-    throw new AppError('VIDEO_TOO_LARGE', 'VIDEO_TOO_LARGE', 413, {
-      maxBytes,
-      size: meta.size,
-    });
 }

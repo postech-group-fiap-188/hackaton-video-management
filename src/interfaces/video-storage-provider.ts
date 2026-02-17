@@ -11,4 +11,12 @@ export abstract class VideoStorageProvider {
     key: string;
     expiresInSeconds: number;
   }): Promise<string>;
+
+  abstract presignPutObject(input: {
+    bucket: string;
+    key: string;
+    contentType: string;
+    expiresInSeconds: number;
+    metadata?: Record<string, string>;
+  }): Promise<string>;
 }

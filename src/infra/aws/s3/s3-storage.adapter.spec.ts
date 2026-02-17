@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { S3StorageAdapter } from './s3-storage.adapter';
 
 jest.mock('@aws-sdk/client-s3', () => {
@@ -10,6 +10,9 @@ jest.mock('@aws-sdk/client-s3', () => {
     GetObjectCommand: jest
       .fn()
       .mockImplementation((args) => ({ __type: 'GetObjectCommand', args })),
+    PutObjectCommand: jest
+      .fn()
+      .mockImplementation((args) => ({ __type: 'PutObjectCommand', args })),
   };
 });
 
@@ -84,6 +87,58 @@ describe('S3StorageAdapter', () => {
       { expiresIn: 60 },
     );
     expect(url).toBe('SIGNED');
+  });
+
+  it('presignPutObject: chama getSignedUrl com PutObjectCommand e expiresIn', async () => {
+    (getSignedUrl as jest.Mock).mockResolvedValue('SIGNED_PUT');
+
+    const adapter = new S3StorageAdapter(makeConfig({}));
+    const url = await adapter.presignPutObject({
+      bucket: 'uploads',
+      key: 'u1-vid-source.mp4',
+      contentType: 'video/mp4',
+      expiresInSeconds: 300,
+    });
+
+    expect(PutObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'uploads',
+      Key: 'u1-vid-source.mp4',
+      ContentType: 'video/mp4',
+    });
+    expect(getSignedUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ __type: 'PutObjectCommand' }),
+      { expiresIn: 300 },
+    );
+    expect(url).toBe('SIGNED_PUT');
+  });
+
+  it('presignPutObject: inclui Metadata no PutObjectCommand quando informado', async () => {
+    (getSignedUrl as jest.Mock).mockResolvedValue('SIGNED_PUT');
+
+    const adapter = new S3StorageAdapter(makeConfig({}));
+    await adapter.presignPutObject({
+      bucket: 'uploads',
+      key: 'u1-vid-source.mp4',
+      contentType: 'video/mp4',
+      expiresInSeconds: 300,
+      metadata: {
+        'user-id': 'u1',
+        'user-email': 'u1@mail.com',
+        'user-name': 'Test User',
+      },
+    });
+
+    expect(PutObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'uploads',
+      Key: 'u1-vid-source.mp4',
+      ContentType: 'video/mp4',
+      Metadata: {
+        'user-id': 'u1',
+        'user-email': 'u1@mail.com',
+        'user-name': 'Test User',
+      },
+    });
   });
 
   it('uploadMultipartFromPath: monta Upload com params corretos', async () => {

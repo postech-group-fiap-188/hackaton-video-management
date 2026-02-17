@@ -43,5 +43,13 @@ export abstract class VideoGateway {
     expiresInSeconds: number;
   }): Promise<string>;
 
+  abstract presignPutObject(input: {
+    bucket: string;
+    key: string;
+    contentType: string;
+    expiresInSeconds: number;
+    metadata?: Record<string, string>;
+  }): Promise<string>;
+
   abstract publishProcessingEvent(input: ProcessingEvent): Promise<void>;
 }

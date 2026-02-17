@@ -135,6 +135,16 @@ export class VideoGatewayImpl implements VideoGateway {
     return this.s3.presignGetObject(input);
   }
 
+  presignPutObject(input: {
+    bucket: string;
+    key: string;
+    contentType: string;
+    expiresInSeconds: number;
+    metadata?: Record<string, string>;
+  }): Promise<string> {
+    return this.s3.presignPutObject(input);
+  }
+
   publishProcessingEvent(input: ProcessingEvent): Promise<void> {
     return this.sns.publishProcessingEvent({ event: input });
   }

@@ -13,6 +13,7 @@ type Repo = {
 type S3 = {
   uploadMultipartFromPath: jest.Mock;
   presignGetObject: jest.Mock;
+  presignPutObject: jest.Mock;
 };
 
 type Sns = {
@@ -29,6 +30,7 @@ const makeRepo = (): Repo => ({
 const makeS3 = (): S3 => ({
   uploadMultipartFromPath: jest.fn(),
   presignGetObject: jest.fn(),
+  presignPutObject: jest.fn(),
 });
 
 const makeSns = (): Sns => ({
@@ -212,6 +214,20 @@ describe('VideoGatewayImpl', () => {
       bucket: 'b',
       key: 'k',
       expiresInSeconds: 60,
+    });
+
+    s3.presignPutObject.mockResolvedValueOnce('https://example.com/presigned-put');
+    await gtw.presignPutObject({
+      bucket: 'b',
+      key: 'k',
+      contentType: 'video/mp4',
+      expiresInSeconds: 300,
+    });
+    expect(s3.presignPutObject).toHaveBeenCalledWith({
+      bucket: 'b',
+      key: 'k',
+      contentType: 'video/mp4',
+      expiresInSeconds: 300,
     });
 
     const event = {

@@ -5,6 +5,7 @@ import { VideoProcessingPublisher } from 'src/interfaces/video-processing-publis
 import { VideoGatewayImpl } from '../gateway/video-gateway-impl';
 
 import { UploadVideos } from '../../application/usecases/upload-videos';
+import { GetPresignedUploadUrls } from '../../application/usecases/get-presigned-upload-urls';
 import { ListUserVideos } from '../../application/usecases/list-user-videos';
 import { UpdateVideoStatus } from '../../application/usecases/update-video-status';
 import { GetProcessedVideo } from '../../application/usecases/get-processed-video';
@@ -60,6 +61,29 @@ export class VideoController {
 
     const output = await uploadVideos.execute({ user, files, validate });
     return UploadVideosPresenter.toJSON(output.items);
+  }
+
+  async initUpload(
+    user: UserProps,
+    files: Array<{ originalFileName: string; contentType: string }>,
+  ) {
+    const gateway = new VideoGatewayImpl(
+      this.videoRepositoryDataSource,
+      this.videoStorageProvider,
+      this.videoProcessingPublisher,
+    );
+
+    const getPresignedUploadUrls = new GetPresignedUploadUrls(
+      gateway,
+      {
+        inputBucket: this.cfg.inputBucket,
+        outputBucket: this.cfg.outputBucket,
+      },
+      this.logger,
+    );
+
+    const output = await getPresignedUploadUrls.execute({ user, files });
+    return { items: output.items };
   }
 
   async list(user: UserProps) {

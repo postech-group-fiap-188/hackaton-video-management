@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
@@ -50,6 +54,32 @@ export class S3StorageAdapter extends VideoStorageProvider {
     expiresInSeconds: number;
   }): Promise<string> {
     const cmd = new GetObjectCommand({ Bucket: input.bucket, Key: input.key });
+    return getSignedUrl(this.client, cmd, {
+      expiresIn: input.expiresInSeconds,
+    });
+  }
+
+  async presignPutObject(input: {
+    bucket: string;
+    key: string;
+    contentType: string;
+    expiresInSeconds: number;
+    metadata?: Record<string, string>;
+  }): Promise<string> {
+    const params: {
+      Bucket: string;
+      Key: string;
+      ContentType: string;
+      Metadata?: Record<string, string>;
+    } = {
+      Bucket: input.bucket,
+      Key: input.key,
+      ContentType: input.contentType,
+    };
+    if (input.metadata && Object.keys(input.metadata).length > 0) {
+      params.Metadata = input.metadata;
+    }
+    const cmd = new PutObjectCommand(params);
     return getSignedUrl(this.client, cmd, {
       expiresIn: input.expiresInSeconds,
     });
