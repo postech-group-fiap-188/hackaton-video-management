@@ -96,6 +96,8 @@ describe('GetPresignedUploadUrls', () => {
         'user-id': 'u1',
         'user-email': 'u1@mail.com',
         'user-name': 'Test User',
+        'output-zip-key': 'u1-vid-1-processed.zip',
+        'video-id': 'vid-1',
       },
     });
   });
