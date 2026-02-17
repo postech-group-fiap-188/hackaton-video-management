@@ -27,7 +27,7 @@ export class GetPresignedUploadUrls {
       outputBucket: string;
     },
     private readonly logger: AppLogger,
-  ) {}
+  ) { }
 
   async execute(input: {
     user: UserProps;
@@ -82,6 +82,7 @@ export class GetPresignedUploadUrls {
           'user-id': user.id,
           'user-email': user.email ?? '',
           'user-name': user.name ?? '',
+          'original-name': file.originalFileName,
           'output-zip-key': outputZipKey,
           'video-id': videoId,
         },
