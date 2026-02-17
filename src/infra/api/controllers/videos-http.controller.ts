@@ -45,7 +45,7 @@ import {
 } from '../dtos/presigned-upload-response.dto';
 
 @ApiTags('videos')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT')
 @ApiSecurity('x-user-id')
 @ApiSecurity('x-user-email')
 @Controller()
