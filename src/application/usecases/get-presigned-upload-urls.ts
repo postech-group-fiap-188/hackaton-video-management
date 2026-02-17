@@ -27,7 +27,7 @@ export class GetPresignedUploadUrls {
       outputBucket: string;
     },
     private readonly logger: AppLogger,
-  ) { }
+  ) {}
 
   async execute(input: {
     user: UserProps;
