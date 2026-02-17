@@ -20,3 +20,10 @@ spec:
                 name: hackathon-video-management
                 port:
                   number: 80
+          - path: /swagger
+            pathType: Prefix
+            backend:
+              service:
+                name: hackathon-video-management
+                port:
+                  number: 80
