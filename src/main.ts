@@ -10,7 +10,7 @@ async function bootstrap(): Promise<void> {
     origin: [
       'https://fiap-lab.vercel.app',
       'http://localhost:3000',
-      'http://localhost:5173'
+      'http://localhost:5173',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
@@ -20,7 +20,7 @@ async function bootstrap(): Promise<void> {
       'Authorization',
       'x-user-id',
       'x-user-email',
-      'x-user-name'
+      'x-user-name',
     ],
   });
 
