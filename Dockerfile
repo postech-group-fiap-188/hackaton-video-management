@@ -14,6 +14,7 @@ FROM node:20-alpine AS runtime
 WORKDIR /srv
 
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"
 
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev && npm cache clean --force

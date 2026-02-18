@@ -15,3 +15,12 @@ data:
     
     # AWS e Integrações
     AWS_REGION: {{ .Values.config.awsRegion | quote }}
+
+    # OpenTelemetry (traces to Tempo; metrics/logs disabled)
+    NODE_OPTIONS: "--require @opentelemetry/auto-instrumentations-node/register"
+    OTEL_TRACES_EXPORTER: "otlp"
+    OTEL_METRICS_EXPORTER: "none"
+    OTEL_LOGS_EXPORTER: "none"
+    OTEL_NODE_RESOURCE_DETECTORS: "env,host,os"
+    OTEL_RESOURCE_ATTRIBUTES: "service.name=hackathon-video-management,service.namespace=hackathon-video-management,deployment.environment=production"
+    OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelExporterOtlpEndpoint | default "" }}

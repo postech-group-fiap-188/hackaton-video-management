@@ -33,6 +33,6 @@ services:
       - "3000:3000"
       - "9229:9229"
     environment:
-      NODE_OPTIONS: "--enable-source-maps"
+      NODE_OPTIONS: "--require @opentelemetry/auto-instrumentations-node/register --enable-source-maps"
       START_CMD: "node --inspect=0.0.0.0:9229 /srv/dist/main.js"
     command: ["sh", "-lc", "/srv/docker/entrypoint.sh"]
