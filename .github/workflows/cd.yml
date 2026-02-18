@@ -21,6 +21,7 @@ env:
   SNS_PROCESSING_TOPIC_ARN: ${{ vars.SNS_PROCESSING_TOPIC_ARN }}
   SQS_STATUS_QUEUE_URL: ${{ vars.SQS_STATUS_QUEUE_URL }}
   MAX_VIDEO_BYTES: ${{ vars.MAX_VIDEO_BYTES }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
 
 jobs:
   build:
@@ -105,6 +106,7 @@ jobs:
             --set-string config.snsProcessingTopicArn="${{ env.SNS_PROCESSING_TOPIC_ARN }}" \
             --set-string config.sqsStatusQueueUrl="${{ env.SQS_STATUS_QUEUE_URL }}" \
             --set-string config.maxVideoBytes="${{ env.MAX_VIDEO_BYTES }}" \
+            --set-string config.otelExporterOtlpEndpoint="${{ env.OTEL_EXPORTER_OTLP_ENDPOINT }}" \
             --set secrets.awsAccessKeyId="${{ secrets.AWS_ACCESS_KEY_ID }}" \
             --set secrets.awsSecretAccessKey="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
             --set secrets.awsSessionToken="${{ secrets.AWS_SESSION_TOKEN }}" \
